@@ -21,4 +21,14 @@ SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=3) A
 \ir 003_offer_lock.sql
 INSERT INTO public.north_schema_migrations(version) VALUES (3);
 \endif
+SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=4) AS apply_v4 \gset
+\if :apply_v4
+\ir 004_payment_sandbox.sql
+INSERT INTO public.north_schema_migrations(version) VALUES (4);
+\endif
+SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=5) AS apply_v5 \gset
+\if :apply_v5
+\ir 005_challenges.sql
+INSERT INTO public.north_schema_migrations(version) VALUES (5);
+\endif
 COMMIT;

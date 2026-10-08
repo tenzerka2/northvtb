@@ -18,17 +18,22 @@ var ErrReplay = errors.New("grant not usable")
 var ErrHash = errors.New("transaction hash mismatch")
 
 type Claims struct {
-	ID         string        `json:"grant_id"`
-	MandateID  string        `json:"mandate_id"`
-	AgentID    string        `json:"agent_id"`
-	MerchantID string        `json:"merchant_id"`
-	Hash       string        `json:"transaction_hash"`
-	Amount     domain.Amount `json:"amount"`
-	Currency   string        `json:"currency"`
-	IssuedAt   int64         `json:"issued_at"`
-	ExpiresAt  int64         `json:"expires_at"`
-	Nonce      string        `json:"nonce"`
-	MaxUses    int           `json:"max_uses"`
+	RiskApprovalID string        `json:"risk_approval_id"`
+	ID             string        `json:"grant_id"`
+	MandateID      string        `json:"mandate_id"`
+	AgentID        string        `json:"agent_id"`
+	MerchantID     string        `json:"merchant_id"`
+	Hash           string        `json:"transaction_hash"`
+	Amount         domain.Amount `json:"amount"`
+	Currency       string        `json:"currency"`
+	IssuedAt       int64         `json:"issued_at"`
+	ExpiresAt      int64         `json:"expires_at"`
+	Nonce          string        `json:"nonce"`
+	MaxUses        int           `json:"max_uses"`
+}
+type Challenge struct {
+	ID, AgentID, MandateID, Hash, GrantID string
+	ExpiresAt, ApprovedAt                 int64
 }
 type Grant struct {
 	Claims      Claims                 `json:"claims"`
@@ -37,11 +42,17 @@ type Grant struct {
 	Transaction domain.TransactionV1   `json:"-"`
 }
 type Response struct {
-	Policy policy.Result `json:"policy"`
-	Grant  *Grant        `json:"grant,omitempty"`
+	ChallengeID string        `json:"challenge_id,omitempty"`
+	Policy      policy.Result `json:"policy"`
+	Grant       *Grant        `json:"grant,omitempty"`
 }
 type Tx interface {
 	trust.Tx
+	ApprovedChallenge(string, string, string, int64) (string, error)
+	NewChallenge(Challenge) error
+	Challenge(string) (Challenge, error)
+	ApproveChallenge(string, int64) error
+	BindChallenge(string, string) error
 	Offer(string) (policy.Offer, error)
 	Grant(string) (Grant, error)
 	InsertGrant(Grant) error
@@ -117,7 +128,11 @@ func (s Service) Issue(ctx context.Context, agent, key string, t domain.Transact
 		if e != nil {
 			return e
 		}
-		out.Policy = policy.Evaluate(policy.Input{Agent: a, Mandate: m, Transaction: t, Offer: o, Now: s.Now(), Available: domain.Available(m.State, s.Now(), m.Terms.ExpiresAt, m.Terms.MaxUses, m.Reserved, m.Consumed)})
+		approval, e := tx.ApprovedChallenge(agent, m.Terms.ID, requestHash, s.Now())
+		if e != nil {
+			return e
+		}
+		out.Policy = policy.Evaluate(policy.Input{Agent: a, Mandate: m, Transaction: t, Offer: o, Now: s.Now(), OwnerRiskApproved: approval != "", Available: domain.Available(m.State, s.Now(), m.Terms.ExpiresAt, m.Terms.MaxUses, m.Reserved, m.Consumed)})
 		if e = tx.Emit(agent, "transaction.proposed", t.OfferID, s.Now()); e != nil {
 			return e
 		}
@@ -133,7 +148,7 @@ func (s Service) Issue(ctx context.Context, agent, key string, t domain.Transact
 			if expiry > m.Terms.ExpiresAt {
 				expiry = m.Terms.ExpiresAt
 			}
-			g := Grant{Claims: Claims{trust.ID(), m.Terms.ID, agent, o.Merchant, requestHash, t.Amount, t.Currency, s.Now(), expiry, hex.EncodeToString(nonce[:]), 1}, State: domain.GrantIssued, Transaction: t}
+			g := Grant{Claims: Claims{RiskApprovalID: approval, ID: trust.ID(), MandateID: m.Terms.ID, AgentID: agent, MerchantID: o.Merchant, Hash: requestHash, Amount: t.Amount, Currency: t.Currency, IssuedAt: s.Now(), ExpiresAt: expiry, Nonce: hex.EncodeToString(nonce[:]), MaxUses: 1}, State: domain.GrantIssued, Transaction: t}
 			b, e := json.Marshal(g.Claims)
 			if e != nil {
 				return e
@@ -145,12 +160,23 @@ func (s Service) Issue(ctx context.Context, agent, key string, t domain.Transact
 			if e = tx.InsertGrant(g); e != nil {
 				return e
 			}
+			if approval != "" {
+				if e = tx.BindChallenge(approval, g.Claims.ID); e != nil {
+					return e
+				}
+			}
 			m.Reserved++
 			out.Grant = &g
 			if e = tx.Emit(agent, "authorization.issued", g.Claims.ID, s.Now()); e != nil {
 				return e
 			}
 		} else {
+			if out.Policy.Decision == policy.AskUser {
+				out.ChallengeID = trust.ID()
+				if e = tx.NewChallenge(Challenge{ID: out.ChallengeID, AgentID: agent, MandateID: m.Terms.ID, Hash: requestHash, ExpiresAt: s.Now() + 300}); e != nil {
+					return e
+				}
+			}
 			if e = tx.Emit(agent, "authorization.denied", m.Terms.ID, s.Now()); e != nil {
 				return e
 			}
@@ -210,7 +236,15 @@ func (s Service) Consume(ctx context.Context, agent string, g Grant, t domain.Tr
 		if e != nil {
 			return e
 		}
-		r := policy.Evaluate(policy.Input{Agent: a, Mandate: m, Transaction: t, Offer: o, Now: s.Now(), Available: m.Reserved > 0 && m.Consumed < m.Terms.MaxUses})
+		approved := false
+		if stored.Claims.RiskApprovalID != "" {
+			c, e := tx.Challenge(stored.Claims.RiskApprovalID)
+			if e != nil {
+				return e
+			}
+			approved = c.AgentID == agent && c.MandateID == m.Terms.ID && c.Hash == h && c.GrantID == stored.Claims.ID && c.ApprovedAt > 0 && s.Now() < c.ExpiresAt
+		}
+		r := policy.Evaluate(policy.Input{Agent: a, Mandate: m, Transaction: t, Offer: o, Now: s.Now(), OwnerRiskApproved: approved, Available: m.Reserved > 0 && m.Consumed < m.Terms.MaxUses})
 		if r.Decision != policy.Allow {
 			return deny(trust.ErrDenied)
 		}
@@ -227,4 +261,35 @@ func (s Service) Consume(ctx context.Context, agent string, g Grant, t domain.Tr
 		return "", denial
 	}
 	return payment, nil
+}
+
+// ApproveRisk requires an authenticated owner confirming the exact transaction digest.
+func (s Service) ApproveRisk(ctx context.Context, owner, agent, mandate, id, hash string) error {
+	return s.Store.Authorization(ctx, func(tx Tx) error {
+		a, e := tx.Agent(agent)
+		if e != nil {
+			return e
+		}
+		m, e := tx.Mandate(mandate)
+		if e != nil {
+			return e
+		}
+		c, e := tx.Challenge(id)
+		if e != nil {
+			return e
+		}
+		if a.Owner != owner || m.Terms.Owner != owner || m.Terms.AgentID != agent || c.AgentID != agent || c.MandateID != mandate || c.Hash != hash || c.GrantID != "" || s.Now() >= c.ExpiresAt || !m.Terms.AllowRiskApproval {
+			return trust.ErrDenied
+		}
+		if e = s.Trust.Verify(ctx, a, m); e != nil {
+			return e
+		}
+		if c.ApprovedAt > 0 {
+			return nil
+		}
+		if e = tx.ApproveChallenge(id, s.Now()); e != nil {
+			return e
+		}
+		return tx.Emit(owner, "challenge.approved", id, s.Now())
+	})
 }

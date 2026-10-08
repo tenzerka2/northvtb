@@ -49,6 +49,7 @@ jobs:
       - run: go test -race -count=1 -v ./internal/adapters/postgres
         env:
           NORTH_TEST_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_app
+          NORTH_TEST_PROVIDER_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_provider
           NORTH_TEST_ADMIN_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable
   contract:
     runs-on: ubuntu-latest
