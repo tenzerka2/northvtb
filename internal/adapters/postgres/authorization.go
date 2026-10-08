@@ -15,7 +15,7 @@ func (s *Store) Authorization(ctx context.Context, f func(authorization.Tx) erro
 }
 func (t *Tx) Offer(id string) (policy.Offer, error) {
 	var o policy.Offer
-	e := t.SQL.QueryRowContext(t.Ctx, `SELECT id,merchant_id,product,category,condition,currency,revision,quantity,unit_amount,fees,shipping,amount,verified,risk,active FROM north.offers WHERE id=$1 FOR SHARE`, id).Scan(&o.ID, &o.Merchant, &o.Product, &o.Category, &o.Condition, &o.Currency, &o.Revision, &o.Quantity, &o.UnitAmount, &o.Fees, &o.Shipping, &o.Amount, &o.Verified, &o.Risk, &o.Active)
+	e := t.SQL.QueryRowContext(t.Ctx, `SELECT id,merchant_id,product,category,condition,currency,revision,quantity,unit_amount,fees,shipping,amount,verified,risk,active FROM north.lock_offer($1)`, id).Scan(&o.ID, &o.Merchant, &o.Product, &o.Category, &o.Condition, &o.Currency, &o.Revision, &o.Quantity, &o.UnitAmount, &o.Fees, &o.Shipping, &o.Amount, &o.Verified, &o.Risk, &o.Active)
 	return o, absent(e)
 }
 func (t *Tx) InsertGrant(g authorization.Grant) error {
