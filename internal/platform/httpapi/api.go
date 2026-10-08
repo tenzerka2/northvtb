@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"go.opentelemetry.io/otel/trace"
 	"io"
 	"log/slog"
 	"net/http"
@@ -25,6 +26,9 @@ import (
 )
 
 type API struct {
+	Limiter       *Limiter
+	Metrics       http.Handler
+	Ready         func(context.Context) error
 	Store         *postgres.Store
 	Trust         trust.Service
 	Authorization authorization.Service
@@ -155,8 +159,13 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.Log.Error("http.panic", "request_id", id)
 			write(w, 500, ErrorResponse{ErrorBody{"INTERNAL_ERROR", "Request could not be completed"}, id})
 		}
-		a.Log.Info("http.request", "request_id", id, "duration_ms", time.Since(started).Milliseconds())
+		a.Log.Info("http.request", "request_id", id, "duration_ms", time.Since(started).Milliseconds(), "trace_id", trace.SpanFromContext(r.Context()).SpanContext().TraceID().String())
 	}()
+	if a.Limiter != nil && !a.Limiter.Allow("global", 50, 100) {
+		w.Header().Set("Retry-After", "1")
+		write(w, 429, ErrorResponse{ErrorBody{"RATE_LIMITED", "Retry later"}, id})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -165,7 +174,11 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" && r.URL.Path == "/readyz" {
-		if e := a.Store.DB.PingContext(ctx); e != nil {
+		check := a.Store.DB.PingContext
+		if a.Ready != nil {
+			check = a.Ready
+		}
+		if e := check(ctx); e != nil {
 			write(w, 503, ErrorResponse{ErrorBody{"NOT_READY", "Dependency unavailable"}, id})
 			return
 		}
@@ -207,6 +220,19 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	actor := principal.Owner
 	if principal.AgentID != "" {
 		actor = principal.AgentID
+	}
+	if a.Limiter != nil && !a.Limiter.Allow("principal:"+actor, 20, 40) {
+		w.Header().Set("Retry-After", "1")
+		write(w, 429, ErrorResponse{ErrorBody{"RATE_LIMITED", "Retry later"}, id})
+		return
+	}
+	if r.Method == "GET" && r.URL.Path == "/metrics" {
+		if principal.AgentID != "" || a.Metrics == nil {
+			fail(trust.ErrDenied)
+			return
+		}
+		a.Metrics.ServeHTTP(w, r)
+		return
 	}
 	if principal.AgentID != "" {
 		if e = a.Store.Within(ctx, func(t trust.Tx) error { return t.Emit(actor, "agent.authenticated", actor, a.Trust.Now()) }); e != nil {

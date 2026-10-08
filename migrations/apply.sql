@@ -31,4 +31,9 @@ SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=5) A
 \ir 005_challenges.sql
 INSERT INTO public.north_schema_migrations(version) VALUES (5);
 \endif
+SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=6) AS apply_v6 \gset
+\if :apply_v6
+\ir 006_operations.sql
+INSERT INTO public.north_schema_migrations(version) VALUES (6);
+\endif
 COMMIT;

@@ -29,7 +29,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d north"
           --health-interval 3s
           --health-timeout 3s
           --health-retries 20
@@ -66,3 +66,11 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install openapi-spec-validator==0.7.2
       - run: python -m openapi_spec_validator api/openapi.json
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make demo
+      - if: always()
+        run: docker compose down

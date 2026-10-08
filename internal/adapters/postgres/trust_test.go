@@ -38,7 +38,7 @@ func setup(t *testing.T) (*Store, trust.Service, *int64) {
 func makeMandate(t *testing.T, s trust.Service) (trust.Agent, trust.Mandate) {
 	t.Helper()
 	ctx := context.Background()
-	a, e := s.Register(ctx, "issuer|owner", trust.Agent{Provider: "sandbox", CredentialRef: "vault:test", Risk: 0})
+	a, e := s.Register(ctx, "issuer|owner", trust.Agent{Provider: "sandbox", CredentialRef: "vault:" + trust.ID(), Risk: 0})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -117,6 +117,7 @@ func TestTrustLifecyclePostgres(t *testing.T) {
 	e = db.Within(ctx, func(tx trust.Tx) error {
 		bad := a
 		bad.ID = trust.ID()
+		bad.CredentialRef = "vault:" + trust.ID()
 		bad.Status = "ACTIVE"
 		bad.RevokedAt = 0
 		if e := tx.InsertAgent(bad); e != nil {

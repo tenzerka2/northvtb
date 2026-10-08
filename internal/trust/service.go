@@ -2,6 +2,7 @@ package trust
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/tenzerka2/northvtb/internal/cryptography"
 	"github.com/tenzerka2/northvtb/internal/domain"
 )
@@ -51,11 +52,15 @@ func (s Service) Draft(ctx context.Context, owner string, t Terms) (Mandate, err
 	t.CreatedAt = s.Now()
 	t.Version = 1
 	t.PredecessorID = ""
-	m := Mandate{Terms: t, State: domain.Draft}
-	if _, e := t.Canonical(); e != nil {
+	raw, e := t.Canonical()
+	if e != nil {
 		return Mandate{}, e
 	}
-	e := s.Store.Within(ctx, func(tx Tx) error {
+	if e = json.Unmarshal(raw, &t); e != nil {
+		return Mandate{}, e
+	}
+	m := Mandate{Terms: t, State: domain.Draft}
+	e = s.Store.Within(ctx, func(tx Tx) error {
 		a, e := tx.Agent(t.AgentID)
 		if e != nil {
 			return e

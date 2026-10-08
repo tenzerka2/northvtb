@@ -12,15 +12,18 @@ import (
 	"github.com/tenzerka2/northvtb/internal/authorization"
 	"github.com/tenzerka2/northvtb/internal/cryptography"
 	"github.com/tenzerka2/northvtb/internal/identity"
+	"github.com/tenzerka2/northvtb/internal/observability"
 	"github.com/tenzerka2/northvtb/internal/payments"
 	"github.com/tenzerka2/northvtb/internal/platform/httpapi"
 	"github.com/tenzerka2/northvtb/internal/trust"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 )
 
 type Runtime struct {
+	Telemetry  *observability.Telemetry
 	API        httpapi.API
 	ProviderDB *postgres.Store
 	Log        *slog.Logger
@@ -80,10 +83,35 @@ func Open(ctx context.Context, log *slog.Logger) (*Runtime, error) {
 	ps := postgres.PaymentStore{Store: db, Trust: ts, Now: now}
 	hash := sha256.Sum256([]byte(token))
 	api := httpapi.API{Store: db, Trust: ts, Authorization: as, Payments: payments.Service{Store: ps, Provider: sandbox.Provider{DB: provider.DB}}, PaymentStore: ps, Identity: identity.SandboxAuth{OwnerHash: hash, Owner: owner, Registry: db}, AgentTokenKey: hash[:], CallbackKey: callback, Log: log}
+	telemetry, e := observability.New(ctx)
+	if e != nil {
+		provider.DB.Close()
+		return nil, e
+	}
+	api.Metrics = telemetry
+	api.Limiter = httpapi.NewLimiter()
+	api.Ready = func(ctx context.Context) error {
+		if e := db.DB.PingContext(ctx); e != nil {
+			return e
+		}
+		return provider.DB.PingContext(ctx)
+	}
+	var version int
+	if e = db.DB.QueryRowContext(ctx, `SELECT CASE WHEN to_regclass('north.event_inbox') IS NOT NULL THEN 6 ELSE 0 END`).Scan(&version); e != nil || version < 6 {
+		provider.DB.Close()
+		return nil, errors.New("database migrations incomplete")
+	}
 	ok = true
-	return &Runtime{api, provider, log}, nil
+	return &Runtime{API: api, ProviderDB: provider, Log: log, Telemetry: telemetry}, nil
 }
-func (r *Runtime) Close() { r.API.Store.DB.Close(); r.ProviderDB.DB.Close() }
+func (r *Runtime) Handler() http.Handler { return r.Telemetry.Wrap(r.API) }
+func (r *Runtime) Close() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = r.Telemetry.Provider.Shutdown(ctx)
+	r.API.Store.DB.Close()
+	r.ProviderDB.DB.Close()
+}
 func (r *Runtime) Work(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -97,7 +125,12 @@ func (r *Runtime) Work(ctx context.Context) {
 	}
 }
 func (r *Runtime) Tick(ctx context.Context) {
-	rows, e := r.API.Store.DB.QueryContext(ctx, `SELECT id FROM north.payments WHERE state IN ('PENDING','SUBMITTED','UNKNOWN') ORDER BY updated_at,id LIMIT 32`)
+	ctx, span := r.Telemetry.Provider.Tracer("north.worker").Start(ctx, "reconcile.batch")
+	defer span.End()
+	if _, e := r.API.Store.DeliverOutbox(ctx, 64); e != nil {
+		r.Log.Warn("outbox.retry_pending")
+	}
+	rows, e := r.API.Store.DB.QueryContext(ctx, `SELECT id FROM north.payments WHERE state IN ('PENDING','SUBMITTED','UNKNOWN') AND next_attempt_at<=clock_timestamp() ORDER BY next_attempt_at,id LIMIT 32`)
 	if e != nil {
 		return
 	}
@@ -117,7 +150,7 @@ func (r *Runtime) Tick(ctx context.Context) {
 			r.Log.Warn("payment.reconcile_pending", "payment_id", id)
 		}
 	}
-	rows, e = r.API.Store.DB.QueryContext(ctx, `SELECT r.payment_id,a.owner_subject FROM north.refunds r JOIN north.payments p ON p.id=r.payment_id JOIN north.grants g ON g.id=p.grant_id JOIN north.agents a ON a.id=g.agent_id WHERE r.state IN ('PENDING','UNKNOWN') ORDER BY r.updated_at,r.id LIMIT 16`)
+	rows, e = r.API.Store.DB.QueryContext(ctx, `SELECT r.payment_id,a.owner_subject FROM north.refunds r JOIN north.payments p ON p.id=r.payment_id JOIN north.grants g ON g.id=p.grant_id JOIN north.agents a ON a.id=g.agent_id WHERE r.state IN ('PENDING','UNKNOWN') AND r.next_attempt_at<=clock_timestamp() ORDER BY r.next_attempt_at,r.id LIMIT 16`)
 	if e != nil {
 		return
 	}

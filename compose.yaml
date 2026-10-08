@@ -1,11 +1,10 @@
-# Foundation only. Credentials must be set explicitly in the environment.
 services:
   db:
     image: postgres:17-bookworm
     environment:
       POSTGRES_USER: north_migrator
       POSTGRES_DB: north
-      POSTGRES_PASSWORD: ${NORTH_DB_PASSWORD:?Set NORTH_DB_PASSWORD for local development}
+      POSTGRES_PASSWORD: ${NORTH_DB_PASSWORD:?Run python3 scripts/dev_init.py}
     volumes:
       - north_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,20 +21,40 @@ services:
       PGHOST: db
       PGUSER: north_migrator
       PGDATABASE: north
-      PGPASSWORD: ${NORTH_DB_PASSWORD:?Set NORTH_DB_PASSWORD for local development}
+      PGPASSWORD: ${NORTH_DB_PASSWORD:?Run python3 scripts/dev_init.py}
+      NORTH_APP_DB_PASSWORD: ${NORTH_APP_DB_PASSWORD:?Run python3 scripts/dev_init.py}
+      NORTH_PROVIDER_DB_PASSWORD: ${NORTH_PROVIDER_DB_PASSWORD:?Run python3 scripts/dev_init.py}
     volumes:
       - ./migrations:/migrations:ro
-    command: ["psql", "-X", "-f", "/migrations/apply.sql"]
+      - ./scripts:/scripts:ro
+    command: ["sh", "/scripts/migrate.sh"]
   api:
     build: .
+    user: "${NORTH_RUNTIME_UID:?Run python3 scripts/dev_init.py}:${NORTH_RUNTIME_GID:?Run python3 scripts/dev_init.py}"
     depends_on:
       migrate:
         condition: service_completed_successfully
+    environment:
+      NORTH_MODE: sandbox
+      NORTH_LISTEN_ADDR: 0.0.0.0:8080
+      NORTH_DATABASE_URL: postgres://north_app_login:${NORTH_APP_DB_PASSWORD}@db:5432/north?sslmode=disable
+      NORTH_PROVIDER_DATABASE_URL: postgres://north_provider_login:${NORTH_PROVIDER_DB_PASSWORD}@db:5432/north?sslmode=disable
+      NORTH_OWNER_TOKEN: ${NORTH_OWNER_TOKEN:?Run python3 scripts/dev_init.py}
+      NORTH_OWNER_SUBJECT: ${NORTH_OWNER_SUBJECT:-sandbox-owner}
+      NORTH_CALLBACK_KEY: ${NORTH_CALLBACK_KEY:?Run python3 scripts/dev_init.py}
+      NORTH_SIGNING_SEED_FILE: /run/north-secrets/signing.seed
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ./.secrets:/run/north-secrets:ro
     ports:
       - "127.0.0.1:8080:8080"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    # Foundation API deliberately has no DB credentials and is not ready.
+    healthcheck:
+      test: ["CMD", "/north", "healthcheck"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
 volumes:
   north_data:

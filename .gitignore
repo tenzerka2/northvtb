@@ -5,3 +5,7 @@
 *.pem
 coverage.out
 bin/
+
+.secrets/
+__pycache__/
+*.pyc
