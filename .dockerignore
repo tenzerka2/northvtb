@@ -1,0 +1,9 @@
+.git
+.env*
+*.key
+*.pem
+bin
+
+.secrets/
+__pycache__/
+*.pyc

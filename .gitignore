@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+coverage.out
+bin/
+
+.secrets/
+__pycache__/
+*.pyc
