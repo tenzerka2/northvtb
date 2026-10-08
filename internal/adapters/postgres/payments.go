@@ -133,30 +133,31 @@ func (p PaymentStore) Settle(ctx context.Context, id string, next domain.Payment
 	})
 }
 func (p PaymentStore) BeginRefund(ctx context.Context, owner, id string) (string, error) {
+	var result string
+	e := p.Store.Atomic(ctx, func(tx *Tx) error { var e error; result, e = tx.StartRefund(owner, id, p.Now()); return e })
+	return result, e
+}
+func (tx *Tx) StartRefund(owner, id string, now int64) (string, error) {
+	a, m, _, state, e := tx.lockPayment(id)
+	if e != nil {
+		return "", e
+	}
+	if a.Owner != owner || m.Terms.Owner != owner || state != domain.Succeeded {
+		return "", trust.ErrDenied
+	}
 	var refund string
-	e := p.Store.Atomic(ctx, func(tx *Tx) error {
-		a, m, _, state, e := tx.lockPayment(id)
-		if e != nil {
-			return e
-		}
-		if a.Owner != owner || m.Terms.Owner != owner || state != domain.Succeeded {
-			return trust.ErrDenied
-		}
-		e = tx.SQL.QueryRowContext(ctx, `SELECT id FROM north.refunds WHERE payment_id=$1`, id).Scan(&refund)
-		if e == nil {
-			return nil
-		}
-		if e != sql.ErrNoRows {
-			return e
-		}
-		refund = trust.ID()
-		_, e = tx.SQL.ExecContext(ctx, `INSERT INTO north.refunds VALUES($1,$2,'PENDING',$3,$3)`, refund, id, time.Unix(p.Now(), 0))
-		if e != nil {
-			return e
-		}
-		return tx.Emit(owner, "refund.started", refund, p.Now())
-	})
-	return refund, e
+	e = tx.SQL.QueryRowContext(tx.Ctx, `SELECT id FROM north.refunds WHERE payment_id=$1`, id).Scan(&refund)
+	if e == nil {
+		return refund, nil
+	}
+	if e != sql.ErrNoRows {
+		return "", e
+	}
+	refund = trust.ID()
+	if _, e = tx.SQL.ExecContext(tx.Ctx, `INSERT INTO north.refunds VALUES($1,$2,'PENDING',$3,$3)`, refund, id, time.Unix(now, 0)); e != nil {
+		return "", e
+	}
+	return refund, tx.Emit(owner, "refund.started", refund, now)
 }
 func (p PaymentStore) EndRefund(ctx context.Context, id string, success bool) error {
 	return p.Store.Atomic(ctx, func(tx *Tx) error {

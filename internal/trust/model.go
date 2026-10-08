@@ -38,11 +38,15 @@ func valid(s string) bool {
 }
 
 type Agent struct {
-	ID, Owner, Provider, CredentialRef string
-	Version                            int64
-	Status                             string
-	Risk                               int
-	CreatedAt, RevokedAt               int64
+	ID            string `json:"id"`
+	Owner         string `json:"owner"`
+	Provider      string `json:"provider_id"`
+	CredentialRef string `json:"-"`
+	Version       int64  `json:"version"`
+	Status        string `json:"status"`
+	Risk          int    `json:"risk_class"`
+	CreatedAt     int64  `json:"created_at"`
+	RevokedAt     int64  `json:"revoked_at"`
 }
 type Terms struct {
 	SchemaVersion     int           `json:"schema_version"`
@@ -115,9 +119,10 @@ func (m Terms) Digest() (string, error) {
 }
 
 type Mandate struct {
-	Terms              Terms
-	State              domain.MandateState
-	Signature          cryptography.Signature
-	ApprovedAt         int64
-	Reserved, Consumed int64
+	Terms      Terms                  `json:"terms"`
+	State      domain.MandateState    `json:"state"`
+	Signature  cryptography.Signature `json:"signature"`
+	ApprovedAt int64                  `json:"approved_at"`
+	Reserved   int64                  `json:"reserved_uses"`
+	Consumed   int64                  `json:"consumed_uses"`
 }

@@ -24,12 +24,21 @@ type Result struct {
 	Rules    []Rule   `json:"rules"`
 }
 type Offer struct {
-	ID, Merchant, Product, Category, Condition, Currency string
-	Revision, Quantity                                   int64
-	UnitAmount, Fees, Shipping, Amount                   domain.Amount
-	Verified                                             bool
-	Risk                                                 int
-	Active                                               bool
+	ID         string        `json:"id"`
+	Merchant   string        `json:"merchant_id"`
+	Product    string        `json:"product"`
+	Category   string        `json:"category"`
+	Condition  string        `json:"condition"`
+	Currency   string        `json:"currency"`
+	Revision   int64         `json:"revision"`
+	Quantity   int64         `json:"quantity"`
+	UnitAmount domain.Amount `json:"unit_amount"`
+	Fees       domain.Amount `json:"fees"`
+	Shipping   domain.Amount `json:"shipping"`
+	Amount     domain.Amount `json:"amount"`
+	Verified   bool          `json:"verified"`
+	Risk       int           `json:"risk"`
+	Active     bool          `json:"active"`
 }
 type Input struct {
 	Agent             trust.Agent

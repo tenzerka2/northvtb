@@ -51,6 +51,12 @@ jobs:
           NORTH_TEST_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_app
           NORTH_TEST_PROVIDER_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_provider
           NORTH_TEST_ADMIN_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable
+      - run: psql -X -v ON_ERROR_STOP=1 -f scripts/seed.sql
+      - run: go build -o /tmp/north-demo ./cmd/north
+      - run: python3 scripts/ci_demo.py
+        env:
+          NORTH_TEST_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_app
+          NORTH_TEST_PROVIDER_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_provider
   contract:
     runs-on: ubuntu-latest
     steps:

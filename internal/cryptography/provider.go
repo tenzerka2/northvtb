@@ -14,8 +14,8 @@ const (
 // Signature has an explicit key reference. Algorithm choice is adapter policy,
 // never negotiated from attacker-controlled input.
 type Signature struct {
-	KeyID string
-	Value []byte
+	KeyID string `json:"key_id"`
+	Value []byte `json:"value"`
 }
 
 // Provider implementations MUST domain-separate purpose and reject unknown keys.
