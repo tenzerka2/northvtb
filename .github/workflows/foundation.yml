@@ -1,0 +1,53 @@
+name: foundation
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.9'
+          cache: false
+      - run: test -z "$(gofmt -l cmd internal)"
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+      - run: go build ./cmd/north
+      - run: docker build -t north-foundation .
+  schema:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_PASSWORD: ci-ephemeral-only
+          POSTGRES_DB: north
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ci-ephemeral-only
+      PGDATABASE: north
+    steps:
+      - uses: actions/checkout@v4
+      - run: make schema-test
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install openapi-spec-validator==0.7.2
+      - run: python -m openapi_spec_validator api/openapi.json

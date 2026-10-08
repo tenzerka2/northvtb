@@ -1,0 +1,12 @@
+{
+ "openapi":"3.1.0",
+ "info":{"title":"NORTH foundation API","version":"0.1.0","description":"Only operational endpoints are implemented. Financial API is gated on trust and authorization tests. Amount conventions for future APIs: integer minor units."},
+ "paths":{
+  "/healthz":{"get":{"operationId":"health","summary":"Process liveness, not financial readiness","responses":{"200":{"description":"Process alive","headers":{"X-Request-ID":{"$ref":"#/components/headers/RequestID"}},"content":{"application/json":{"schema":{"type":"object","required":["status"],"properties":{"status":{"const":"alive"}},"additionalProperties":false}}}}}}},
+  "/readyz":{"get":{"operationId":"readiness","summary":"Fails closed until service dependencies are implemented","responses":{"503":{"description":"Service not ready","headers":{"X-Request-ID":{"$ref":"#/components/headers/RequestID"}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}}}}}
+ },
+ "components":{
+  "headers":{"RequestID":{"description":"Server-generated correlation ID","schema":{"type":"string","pattern":"^[0-9a-f]{32}$"}}},
+  "schemas":{"ErrorResponse":{"type":"object","required":["error","request_id"],"additionalProperties":false,"properties":{"error":{"type":"object","required":["code","message"],"additionalProperties":false,"properties":{"code":{"type":"string"},"message":{"type":"string"}}},"request_id":{"type":"string","pattern":"^[0-9a-f]{32}$"}}}}
+ }
+}

@@ -1,5 +1,40 @@
 # NORTH
 
-Banking infrastructure for delegated financial authority of digital agents.
+Банковская инфраструктура делегированных финансовых полномочий цифровых агентов. Go modular monolith; PostgreSQL — источник истины. Внешний агент предлагает покупку; право на исполнение выдаёт детерминированная система в рамках подтверждённого пользователем мандата.
 
-Implementation is being built in five gated stages. This initial repository contains no working payment system. See subsequent architecture and implementation changes for verified capabilities.
+**Текущий статус: foundation, этап 1 из 5. Работающих финансовых API пока нет.** Нельзя использовать для реальных платежей. Наличие схемы БД не означает, что Policy Engine, подписи или payment flow реализованы. Подробно: [статус](docs/status.md), [архитектура](docs/architecture.md), [модель угроз](THREAT_MODEL.md), [ADR](docs/adr).
+
+## Что есть
+
+Доменные денежные величины в копейках с проверками переполнения, версионированный digest точной транзакции, state machines, граница CryptoProvider, SQL-схема с неизменяемостью активных мандатов/Grant, ограничениями использования и правами append-only для аудита. Миграции сериализуются advisory lock и применяются один раз. Аудит пока не вычисляет цепочку: это задача trust core.
+
+Минимальный HTTP-процесс предоставляет `GET /healthz` (200) и `GET /readyz` (503 до подключения сервисов). Он намеренно не объявляет финансовую готовность. Контракт: [OpenAPI 3.1](api/openapi.json). Ошибки имеют код и серверный request ID; логи не содержат пользовательский payload или credentials.
+
+## Проверки и запуск
+
+Нужны Go 1.26+, PostgreSQL 17 / psql или Docker Compose. Локальные проверки:
+
+```sh
+make test
+make vet
+make build
+# PGHOST, PGUSER, PGPASSWORD, PGDATABASE указывают на отдельную тестовую БД.
+make schema-test
+```
+
+`schema-test` применяет миграцию дважды, затем проверяет ограничения и права внутри откатываемой транзакции. Выполняйте под отдельной ролью мигратора с правом создавать роли. Приложение должно получать отдельную LOGIN-роль, наследующую `north_app`, без владения таблицами. Не выдавайте приложению учётные данные мигратора.
+
+```sh
+# Задайте NORTH_DB_PASSWORD самостоятельно; не сохраняйте пароль в репозитории.
+export NORTH_DB_PASSWORD
+# Compose отклонит запуск без непустого пароля.
+docker compose up --build
+curl -i http://127.0.0.1:8080/healthz
+curl -i http://127.0.0.1:8080/readyz
+```
+
+Пока API не подключён к БД; Compose запускает базу и применяет foundation-схему. Тестовые credentials в workflow существуют только в одноразовом CI-контейнере. Локальный API опубликован только на loopback. Удаление Docker volume уничтожает данные; для обычного останова используйте `docker compose down` без `-v`.
+
+## Последовательность работ
+
+Foundation → trust core → deterministic policy / authorization → sandbox end-to-end → hardening. Каждый следующий этап начинается после прохождения предыдущего gate. UI не разрабатывается. Архитектурный план не является обещанием production-ready реализации или банковской сертификации.

@@ -1,0 +1,41 @@
+# Foundation only. Credentials must be set explicitly in the environment.
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: north_migrator
+      POSTGRES_DB: north
+      POSTGRES_PASSWORD: ${NORTH_DB_PASSWORD:?Set NORTH_DB_PASSWORD for local development}
+    volumes:
+      - north_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U north_migrator -d north"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    image: postgres:17-bookworm
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: north_migrator
+      PGDATABASE: north
+      PGPASSWORD: ${NORTH_DB_PASSWORD:?Set NORTH_DB_PASSWORD for local development}
+    volumes:
+      - ./migrations:/migrations:ro
+    command: ["psql", "-X", "-f", "/migrations/apply.sql"]
+  api:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Foundation API deliberately has no DB credentials and is not ready.
+volumes:
+  north_data:
