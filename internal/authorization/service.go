@@ -133,10 +133,12 @@ func (s Service) Issue(ctx context.Context, agent, key string, t domain.Transact
 			return e
 		}
 		out.Policy = policy.Evaluate(policy.Input{Agent: a, Mandate: m, Transaction: t, Offer: o, Now: s.Now(), OwnerRiskApproved: approval != "", Available: domain.Available(m.State, s.Now(), m.Terms.ExpiresAt, m.Terms.MaxUses, m.Reserved, m.Consumed)})
-		if e = tx.Emit(agent, "transaction.proposed", t.OfferID, s.Now()); e != nil {
+		canonical, _ := t.Canonical()
+		if e = tx.EmitData(agent, "transaction.proposed", requestHash, s.Now(), canonical); e != nil {
 			return e
 		}
-		if e = tx.Emit(agent, "policy.evaluated", string(out.Policy.Decision), s.Now()); e != nil {
+		trace, _ := json.Marshal(out.Policy)
+		if e = tx.EmitData(agent, "policy.evaluated", requestHash, s.Now(), trace); e != nil {
 			return e
 		}
 		if out.Policy.Decision == policy.Allow {

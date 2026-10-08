@@ -247,6 +247,18 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" {
 		switch {
+		case r.URL.Path == "/v1/audit":
+			if principal.AgentID != "" {
+				fail(trust.ErrDenied)
+				return
+			}
+			events, e := a.Store.OwnerAudit(ctx, principal.Owner)
+			if e != nil {
+				fail(e)
+				return
+			}
+			write(w, 200, events)
+			return
 		case r.URL.Path == "/v1/offers":
 			offers, e := a.Store.Offers(ctx, r.URL.Query().Get("product"))
 			if e != nil {
@@ -320,6 +332,12 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(key) < 1 || len(key) > 128 {
 		fail(domain.ErrInvalid)
 		return
+	}
+	for _, c := range key {
+		if c < '!' || c > '~' {
+			fail(domain.ErrInvalid)
+			return
+		}
 	}
 	operation := ""
 	var payload any

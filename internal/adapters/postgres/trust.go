@@ -138,12 +138,15 @@ func (t *Tx) SaveMandate(m trust.Mandate) error {
 	return e
 }
 func (t *Tx) Emit(actor, kind, subject string, at int64) error {
+	return t.EmitData(actor, kind, subject, at, nil)
+}
+func (t *Tx) EmitData(actor, kind, subject string, at int64, data []byte) error {
 	var seq int64
 	var previous []byte
 	if e := t.SQL.QueryRowContext(t.Ctx, `SELECT sequence,hash FROM north.audit_head WHERE singleton FOR UPDATE`).Scan(&seq, &previous); e != nil {
 		return e
 	}
-	event := audit.Event{Version: 1, Sequence: seq + 1, ID: trust.ID(), At: at, Actor: actor, Kind: kind, Subject: subject, Previous: hex.EncodeToString(previous)}
+	event := audit.Event{Data: data, Version: 1, Sequence: seq + 1, ID: trust.ID(), At: at, Actor: actor, Kind: kind, Subject: subject, Previous: hex.EncodeToString(previous)}
 	raw, e := event.Bytes()
 	if e != nil {
 		return e
@@ -188,7 +191,11 @@ func (s *Store) VerifyAudit(ctx context.Context, checkpointSeq int64, checkpoint
 		if e = rows.Scan(&n, &id, &at, &actor, &kind, &subject, &raw, &prev, &hash); e != nil {
 			return e
 		}
-		expected, e := (audit.Event{Version: 1, Sequence: n, ID: id, At: at.Unix(), Actor: actor, Kind: kind, Subject: subject, Previous: hex.EncodeToString(prev)}).Bytes()
+		var parsed audit.Event
+		if e = json.Unmarshal(raw, &parsed); e != nil {
+			return trust.ErrDenied
+		}
+		expected, e := (audit.Event{Data: parsed.Data, Version: 1, Sequence: n, ID: id, At: at.Unix(), Actor: actor, Kind: kind, Subject: subject, Previous: hex.EncodeToString(prev)}).Bytes()
 		if e != nil || n != seq+1 || !bytes.Equal(previous, prev) || !bytes.Equal(raw, expected) || !bytes.Equal(hash, audit.Hash(raw)) {
 			return trust.ErrDenied
 		}

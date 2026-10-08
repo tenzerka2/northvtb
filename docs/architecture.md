@@ -1,6 +1,6 @@
 # NORTH architecture
 
-Status: design and foundation; not a production banking system. Financial APIs must not be exposed until their stage gates pass. Amounts are integer minor units (RUB 85,000 = 8,500,000 kopecks). All timestamps are UTC; expiry is exclusive (`now >= expires_at` rejects). No float or natural-language value enters authorization.
+Status: sandbox MVP implementation. Financial API and payment flow are gated by PostgreSQL, HTTP and Compose tests; this is not a production banking system. Amounts are integer minor units (RUB 85,000 = 8,500,000 kopecks). All timestamps are UTC; expiry is exclusive (`now >= expires_at` rejects). No float or natural-language value enters authorization.
 
 ## Boundaries and dependencies
 
@@ -53,7 +53,7 @@ Mutations require `Idempotency-Key` (bounded ASCII). Namespace includes authenti
 
 Audit append serializes on a singleton head in the same transaction as the business mutation. Hash uses a versioned domain prefix and unambiguous canonical payload with sequence, previous hash, event ID, timestamp, actor, type and subject. The database role cannot UPDATE/DELETE/TRUNCATE events. Recompute full history and compare an externally retained signed checkpoint to detect rollback or suffix deletion; a local chain alone cannot detect a privileged attacker rewriting the entire chain. Outbox delivery is at least once; consumers deduplicate event ID. Leases recover after worker crashes. Do not claim exactly-once transport.
 
-Logs contain request IDs and sanitized reason codes, not raw intents, credentials or payment data. Health is liveness only; readiness requires dependencies and migrations. Foundation readiness deliberately returns 503 until persistence and financial services are connected. Production needs OIDC integration, rate limiting by authenticated identity, OpenTelemetry, TLS, key management/rotation, restore testing, independent audit anchoring and banking review. No real funds move in the sandbox.
+Logs contain request IDs and sanitized reason codes, not raw intents, credentials or payment data. Health is liveness only; readiness requires dependencies and migrations. Foundation mode returns readiness 503; explicitly configured sandbox mode checks both application and provider databases. Production needs OIDC integration, rate limiting by authenticated identity, OpenTelemetry, TLS, key management/rotation, restore testing, independent audit anchoring and banking review. No real funds move in the sandbox.
 
 ## Stage gates
 
@@ -64,3 +64,9 @@ Logs contain request IDs and sanitized reason codes, not raw intents, credential
 5. Hardening: adversarial matrix, deployment/telemetry and recovery tests; documented actual results.
 
 No later stage starts until the previous gate passes. See THREAT_MODEL.md and docs/status.md for implementation evidence.
+
+## Implemented adapter choices
+
+Sandbox identity uses a separate owner bearer and hashed agent credentials; the authentication port is ready for a bank OIDC adapter, which is not implemented. HTTP idempotency shares the transaction with the business operation. `internal/trust` owns agent/mandate use cases; policy, authorization, payments, audit and merchants have separate packages. `internal/adapters/postgres` implements their transactional ports. The HTTP adapter and runtime are composition/read-model boundaries.
+
+The worker performs expiry/revocation cleanup, payment/refund reconciliation with bounded backoff, and outbox delivery to a durable local inbox. External event transport and signed external audit checkpoint storage are production extension points, not claimed delivered integrations. OpenTelemetry traces HTTP and worker batches; owner-protected Prometheus metrics can be scraped by an OTel Collector.

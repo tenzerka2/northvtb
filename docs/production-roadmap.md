@@ -1,0 +1,15 @@
+# From sandbox to a bank pilot
+
+This implementation moves no real money and does not claim banking certification, regulatory compliance, or an absence of vulnerabilities. A real provider integration is a separate engineering and bank approval task.
+
+Replace the explicit single-owner sandbox authenticator with the bank's OAuth2/OIDC adapter. Validate issuer, audience, algorithm, expiry, scopes and subject mapping; add bank-required step-up authentication for approval. Agent identity enrolment must validate provider identity and possession of credentials, with controlled risk classification and credential rotation. In the sandbox the owner provisions agent credentials; this is not remote agent attestation.
+
+Replace the in-process Ed25519 adapter with the bank-approved CryptoProvider implementation, supported key lifecycle, HSM/СКЗИ policy and historical verification keys. Owner credential rotation and agent-token derivation currently share sandbox configuration; changing those values is not a supported in-place key-rotation workflow. Supply managed secrets and short-lived database credentials, TLS/mTLS, network isolation and least-privilege deployment identities.
+
+Implement a provider adapter only after documenting durable idempotency retention, status lookup, authorize/capture semantics, callback authentication, refund and void/expiry handling. A provider without those guarantees cannot inherit the sandbox's no-double-capture guarantee. Authenticate merchant/payee mappings and product/offer assertions independently. NORTH authorizes a specified purchase; it cannot prove physical fulfillment or protect an owner who explicitly approves malicious terms.
+
+Keep the cancellation boundary explicit: a revocation that commits before submission blocks the command; a submitted external operation may still complete after revocation. Ambiguous results retain usage until authoritative reconciliation. Introduce operational handling for long-lived UNKNOWN attempts, mismatch alerts and operator workflows with their own approval/audit trail.
+
+Move signed audit checkpoints to an independently controlled append-only location and test full restore against them. Test PostgreSQL backup/PITR and restore together with the signing material. The current local inbox demonstrates durable outbox delivery and deduplication; an external HTTP/bus transport needs authenticated delivery, receiver deduplication, backoff and reconciliation. Do not claim a local chain protects against a database administrator rewriting both the chain and its head.
+
+Before a pilot, run an independent security review, fuzz/property testing, realistic contention/soak/failure tests, capacity sizing and recovery exercises. Pin production container digests, build provenance and dependency policy. Add edge-level abuse protection; the MVP's rate limiter is per process. Connect OTLP and metrics to the bank's observability stack, set retention/redaction policy and verify alerts. The MVP implements full refunds only, a small controlled merchant catalogue and one sandbox owner; multi-tenant operations and real commercial settlement need separate requirements.

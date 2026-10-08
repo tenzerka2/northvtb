@@ -17,6 +17,7 @@ type Tx interface {
 	InsertMandate(Mandate) error
 	SaveMandate(Mandate) error
 	Emit(actor, kind, subject string, at int64) error
+	EmitData(actor, kind, subject string, at int64, data []byte) error
 }
 type Store interface {
 	Within(context.Context, func(Tx) error) error

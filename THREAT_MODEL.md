@@ -1,32 +1,36 @@
 # NORTH threat model
 
-Scope: untrusted agents, intents and merchants; trusted application runtime and narrowly privileged PostgreSQL role. Database administrator compromise and signing-key compromise require external controls. Status F means foundation/design only, not an implemented defense in a running payment flow.
+Scope: hostile agents, injected intent, untrusted proposal data, stolen identifiers, concurrency and ambiguous provider results. The application runtime and its private signing material remain trusted. Implemented controls are tested in the sandbox; no production-bank certification is implied.
 
-| Threat / attack | Impact | Mitigation | Residual risk | MVP status |
-| --- | --- | --- | --- | --- |
-| Prompt injection changes purchase intent | Unwanted purchase | LLM has draft-only access; owner confirms canonical terms; deterministic checks | Owner approves deceptive terms | F; approval not built |
-| Agent compromise | Unauthorized proposals | Agent/owner binding, scope, merchant/amount limits | Abuse within an approved mandate | F |
-| Credential theft | Agent impersonation | Revocation checked under lock, short-lived scoped credentials | Use before detection | F |
-| Stolen mandate ID | Cross-owner use | Derive principal from auth, verify bound agent and owner | Compromised bound identity | F |
-| Mandate tampering | Limit changes | Immutable signed canonical terms, database guards | Signing/admin compromise | DB guard drafted; signing pending |
-| Transaction tampering | Different amount/product/merchant | Exact canonical digest and authoritative offer match at enforcement | False trusted catalogue data | F |
-| Replay | Multiple charges | Unique grant->command, terminal consumed grant, stable provider key | Provider breaks idempotency | Schema unique constraint only |
-| Double spend / parallel grants | Limit overrun | Mandate lock and usage reservations in issuance transaction | Implementation lock-order defects | Schema counter bounds only |
-| Parallel consume | Duplicate dispatch | Atomic state transition plus unique payment grant | Provider retention mismatch | Schema uniqueness only |
-| TOCTOU / revoke during dispatch | Payment after revocation | Recheck at SUBMITTED linearization point; cancel before it | Remote operation after this point cannot be guaranteed cancelled | F |
-| Expired mandate | Stale approval used | Injected clock and fresh expiry checks at authorization, consume and dispatch | Clock skew | Value tests only |
-| Revoked mandate | Cancelled mandate used | Database lifecycle reread and locks | Already submitted operation | F |
-| Revoked agent | Continued credential use | Agent lock and revocation check throughout | Detection latency | F |
-| Merchant spoofing | Funds to attacker | Authoritative merchant ID/payee mapping and authenticated catalogue | Catalogue operator compromise | F |
-| Forged product attributes | Wrong item passes policy | Offer revision and verified catalogue values, total costs bound | Physical fulfillment fraud outside payment authorization | F |
-| Provider timeout | Retry double charge | UNKNOWN with held reservation, stable keys and reconciliation | Provider cannot resolve status | F |
-| Duplicate/forged callback | Repeated accounting/state regression | Signed callback, unique provider/event ID, payment field checks | Provider signing-key compromise | Schema dedupe only |
-| Audit tampering | Hidden unauthorized actions | Append-only role, chained events, external signed checkpoints | Privileged rewrite without external checkpoint | DB guards only; chain pending |
-| Privilege escalation | Agent approves its own mandate | Separate owner scopes/subject, no client-supplied principal | Owner IdP compromise | F |
-| Key substitution / algorithm confusion | Forged authorization | Purpose-bound CryptoProvider and key policy; pinned algorithms | HSM/operator compromise | Port only |
-| Idempotency key body substitution | Reuse successful authorization for new body | Principal/operation namespace plus canonical request hash | Key retention errors | Schema only |
-| Outbox redelivery | Repeated external effects | At-least-once event dedupe and stable provider operation keys | Non-idempotent adapter | Schema only |
-| Refund abuse | Unauthorized reversal or restored spend | Owner scope, refund cap and stable refund keys; no restored mandate uses | Provider refund ambiguity | F |
-| Resource exhaustion | Availability loss | Request bounds/timeouts, identity rate limits, bounded worker batches | Distributed denial of service | HTTP size/time limits only |
+| Attack | Impact | Implemented mitigation / evidence | Residual risk |
+| --- | --- | --- | --- |
+| Prompt injection or hallucinated intent | Unwanted purchase | Compiler has draft-only port; authenticated owner confirms exact canonical digest; LLM absent from policy | Owner approves malicious terms; optional external compiler is not implemented |
+| Compromised agent | Unauthorized proposal/execution | Bound agent identity, immutable mandate, deterministic limits, one-use grant; HTTP role and stolen-authority tests | Abuse inside genuinely approved authority |
+| Stolen credential | Impersonation | Hashed agent credentials, unique references, authenticated registry lookup, row-locked revocation rechecks | Activity before revocation; sandbox owner token is not production OIDC |
+| Stolen mandate ID | Another agent spends | Owner/agent binding in trust, policy, enforcement; live HTTP stolen-mandate test | Compromise of the correctly bound identity |
+| Mandate tampering | Changed limits/merchant/product | Canonical signature, duplicated-column consistency checks, immutable SQL trigger; unit and PostgreSQL tamper tests | Signing key/runtime/database administrator compromise |
+| Transaction tampering | Changed sum/payee/product after approval | Signed grant binds full canonical digest; adversarial 82,990 -> 92,990 HTTP demo and field mutation tests | False data from the trusted catalogue operator |
+| Grant theft or invalid signature | Unauthorized execution | Authenticated agent binding, key/purpose checks, stored claims comparison, lifecycle check | Theft of both a valid grant and its bound credential within limits |
+| Replay | Repeated execution | Terminal single-use grant, unique grant-to-command constraint; 32 parallel consumers | Provider must honor durable idempotency |
+| Parallel issuance / double spend | Multiple grants over one-use mandate | Agent/mandate row locks and capacity reservation; 32 parallel issuers yield one grant | Contention/availability; independent banking limits are out of scope |
+| Concurrent settlement | Multiple accounting updates | Locked payment/mandate and terminal transition checks; concurrent timeout recovery test | Contradictory authoritative provider results require operator reconciliation |
+| TOCTOU / revoke before dispatch | Revoked authority reaches provider | Recheck policy and authority at SUBMITTED boundary; pre-dispatch revocation test | Already submitted external operation may complete |
+| Expired mandate or grant | Stale approval used | Exclusive expiry checks at issue, consume and dispatch; effective checks plus expiry sweeper | Trusted clock skew needs production monitoring |
+| Revoked mandate | Cancelled mandate reused | Locked persisted state, immutable terminal state; PostgreSQL integration tests | External command submitted before revocation |
+| Revoked agent | Credential continues spending | Registry denies authentication; trust/dispatch recheck; sweeper revokes unused authority | Delayed detection before revocation |
+| Merchant spoofing / forged attributes | Wrong beneficiary/item | Read-only authoritative catalogue and complete offer revision/field match; proposal/field tests | Catalogue attestation and physical fulfillment are not implemented |
+| Provider timeout after capture | Double charge on retry | UNKNOWN retains reservation; stable provider identity and GetStatus reconciliation; one persistent capture verified | Real adapter must support idempotency and status lookup |
+| Duplicate / forged callback | Duplicate accounting or regressed state | HMAC, exact amount/currency binding, unique event ID and transition checks; duplicate UNKNOWN settlement test | Provider callback secret compromise |
+| Privilege escalation | Agent approves/revokes owner authority | Separate owner/agent API roles and owner checks; HTTP agent-approval rejection | Owner IdP compromise; sandbox authentication must be replaced |
+| ASK_USER abuse | Consent overrides hard limits | Exact one-use challenge/digest/owner binding; only explicitly overridable risk; hard rules remain DENY | Owner approves an allowed risk exception |
+| Idempotency body substitution | Different request reuses success | Principal+operation namespace, canonical body hash, atomic stored response, advisory lock; conflict tests | Retention and coordinated sandbox secret rotation need operational policy |
+| Refund abuse | Excess refund/restored budget | Owner-only command, stable full-refund identity, provider payment lock; authority remains consumed | Partial refunds/voids are not implemented |
+| Audit history change | Concealed operation | Append-only app role and SQL trigger, chained canonical evidence, full verification; privileged tamper test | Full privileged rewrite requires independent external checkpoint anchoring |
+| Audit failure during mutation | Financial change without evidence | Same transaction for domain state, audit and outbox; rollback integration test | Availability loss when audit storage unavailable |
+| Outbox redelivery / worker crash | Duplicate downstream effect | SKIP LOCKED relay, unique durable inbox, atomic delivery marker; concurrent relay test | External transport/consumer is a future adapter |
+| SQL privilege expansion | Agent/merchant data overwritten | Parameterized queries, limited app/provider roles, fixed SECURITY DEFINER locker; role/immutability SQL tests | App runtime compromise is beyond an untrusted-agent boundary |
+| Cross-protocol crypto use | Mandate signature accepted as grant | Fixed purpose prefixes, explicit key reference, replaceable CryptoProvider; cross-purpose rejection test | HSM, certification and key rotation are not implemented |
+| Secret or trace leakage | Credential/data exposure | No request bodies/bearers in logs, hashed credential storage, ignored private files, normalized trace routes; trace export leakage test | Local host compromise; TLS/managed secrets needed for a pilot |
+| Resource exhaustion | Denial of service | HTTP size/time limits, bounded global/per-principal rate limiter, DB lock/statement timeouts, worker backoff | Distributed/edge protection and load qualification remain production tasks |
 
-No claim of banking certification, regulatory compliance, production readiness or absence of security defects follows from this model. Real integration requires bank-specific security review and threat testing.
+Production requirements and unimplemented integrations are detailed in docs/production-roadmap.md. Test references and observed CI evidence are maintained in docs/status.md; passing tests establish these tested behaviors, not a proof that every possible attack is excluded.

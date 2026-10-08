@@ -43,6 +43,7 @@ services:
       NORTH_OWNER_SUBJECT: ${NORTH_OWNER_SUBJECT:-sandbox-owner}
       NORTH_CALLBACK_KEY: ${NORTH_CALLBACK_KEY:?Run python3 scripts/dev_init.py}
       NORTH_SIGNING_SEED_FILE: /run/north-secrets/signing.seed
+      OTEL_SERVICE_NAME: north
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ./.secrets:/run/north-secrets:ro

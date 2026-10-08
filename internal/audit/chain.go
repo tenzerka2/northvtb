@@ -8,14 +8,15 @@ import (
 )
 
 type Event struct {
-	Version  int    `json:"version"`
-	Sequence int64  `json:"sequence"`
-	ID       string `json:"id"`
-	At       int64  `json:"at"`
-	Actor    string `json:"actor"`
-	Kind     string `json:"kind"`
-	Subject  string `json:"subject"`
-	Previous string `json:"previous"`
+	Data     json.RawMessage `json:"data,omitempty"`
+	Version  int             `json:"version"`
+	Sequence int64           `json:"sequence"`
+	ID       string          `json:"id"`
+	At       int64           `json:"at"`
+	Actor    string          `json:"actor"`
+	Kind     string          `json:"kind"`
+	Subject  string          `json:"subject"`
+	Previous string          `json:"previous"`
 }
 
 func (e Event) Bytes() ([]byte, error) {

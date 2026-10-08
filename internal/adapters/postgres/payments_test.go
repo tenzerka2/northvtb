@@ -188,3 +188,39 @@ func TestRiskChallengeContinuation(t *testing.T) {
 		t.Fatal("used challenge reused")
 	}
 }
+
+func TestCallbackSettlesUnknownExactlyOnce(t *testing.T) {
+	db, auth, a, m, tx, _ := authSetup(t)
+	ctx := context.Background()
+	r, e := auth.Issue(ctx, a.ID, "callback-source", tx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	id, e := auth.Consume(ctx, a.ID, *r.Grant, tx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	store := PaymentStore{Store: db, Trust: auth.Trust, Now: auth.Now}
+	service := payments.Service{Store: store, Provider: provider(t, true)}
+	if state, e := service.Execute(ctx, id); state != domain.Unknown || e == nil {
+		t.Fatal(state, e)
+	}
+	secret := bytes.Repeat([]byte{9}, 32)
+	cb := payments.Callback{Provider: "sandbox", EventID: trust.ID(), PaymentID: id, Amount: tx.Amount, Currency: tx.Currency, Status: domain.Succeeded}
+	mac, _ := payments.SignCallback(secret, cb)
+	for i := 0; i < 2; i++ {
+		if e = store.Callback(ctx, secret, cb, mac); e != nil {
+			t.Fatal(e)
+		}
+	}
+	var reserved, used int64
+	if e = db.DB.QueryRow(`SELECT reserved_uses,consumed_uses FROM north.mandates WHERE id=$1`, m.Terms.ID).Scan(&reserved, &used); e != nil || reserved != 0 || used != 1 {
+		t.Fatal(reserved, used, e)
+	}
+	cb.EventID = trust.ID()
+	cb.Status = domain.Failed
+	mac, _ = payments.SignCallback(secret, cb)
+	if e = store.Callback(ctx, secret, cb, mac); e == nil {
+		t.Fatal("out-of-order callback regressed success")
+	}
+}

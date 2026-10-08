@@ -15,6 +15,7 @@ const (
 )
 
 type Rule struct {
+	Reason  string   `json:"reason_code,omitempty"`
 	Code    string   `json:"code"`
 	Passed  bool     `json:"passed"`
 	Failure Decision `json:"failure"`
@@ -56,7 +57,15 @@ func Evaluate(i Input) Result {
 	t := i.Transaction
 	o := i.Offer
 	add := func(code string, ok bool, failure Decision) {
-		r.Rules = append(r.Rules, Rule{code, ok, failure})
+		reason := ""
+		if !ok {
+			reasons := map[string]string{"AGENT_MATCH": "AGENT_MISMATCH", "AGENT_ACTIVE": "AGENT_REVOKED", "OWNER_MATCH": "OWNER_MISMATCH", "MANDATE_MATCH": "MANDATE_MISMATCH", "MANDATE_ACTIVE": "MANDATE_INACTIVE", "MANDATE_NOT_EXPIRED": "MANDATE_EXPIRED", "TRANSACTION_VALID": "INVALID_TRANSACTION", "ACTION_MATCH": "ACTION_MISMATCH", "PURPOSE_MATCH": "PURPOSE_MISMATCH", "PRODUCT_MATCH": "PRODUCT_MISMATCH", "CATEGORY_MATCH": "CATEGORY_MISMATCH", "CONDITION_MATCH": "CONDITION_MISMATCH", "AMOUNT_WITHIN_LIMIT": "AMOUNT_LIMIT_EXCEEDED", "CURRENCY_MATCH": "CURRENCY_MISMATCH", "MERCHANT_ALLOWED": "MERCHANT_NOT_ALLOWED", "OFFER_AUTHENTIC": "OFFER_MISMATCH", "MERCHANT_TRUST_SUFFICIENT": "MERCHANT_NOT_VERIFIED", "RISK_ACCEPTABLE": "RISK_LIMIT_EXCEEDED", "USAGE_AVAILABLE": "USAGE_LIMIT_EXHAUSTED"}
+			reason = reasons[code]
+			if code == "RISK_ACCEPTABLE" && failure == AskUser {
+				reason = "RISK_REQUIRES_APPROVAL"
+			}
+		}
+		r.Rules = append(r.Rules, Rule{Code: code, Passed: ok, Failure: failure, Reason: reason})
 		if !ok {
 			if failure == Deny {
 				r.Decision = Deny
@@ -77,7 +86,7 @@ func Evaluate(i Input) Result {
 	add("PRODUCT_MATCH", t.Product == m.Terms.Product, Deny)
 	add("CATEGORY_MATCH", t.Category == m.Terms.Category, Deny)
 	add("CONDITION_MATCH", t.Condition == m.Terms.Condition, Deny)
-	add("AMOUNT_LIMIT_EXCEEDED", t.Amount <= m.Terms.MaxAmount, Deny)
+	add("AMOUNT_WITHIN_LIMIT", t.Amount <= m.Terms.MaxAmount, Deny)
 	add("CURRENCY_MATCH", t.Currency == m.Terms.Currency, Deny)
 	allowed := len(m.Terms.Merchants) == 0
 	for _, id := range m.Terms.Merchants {

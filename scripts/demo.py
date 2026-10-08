@@ -65,10 +65,10 @@ try:
     call('POST','/v1/payments',agent,execution,run+'-replay',want=403)
     print('Payment SUCCEEDED; mandate CONSUMED 1/1; replay blocked')
     other=call('POST','/v1/agents',owner,{},run+'-other-agent')
-    call('POST','/v1/authorizations',other['agent_token'],{'transaction':dict(tx,agent_id=other['agent_id'])},run+'-stolen-mandate',want=403)
-    call('POST','/v1/payments',other['agent_token'],execution,run+'-stolen-grant',want=403)
     second=mandate('tamper');newtx=transaction(valid_offer,second['terms']['id'])
     authorized=call('POST','/v1/authorizations',agent,{'transaction':newtx},run+'-tamper-grant')
+    call('POST','/v1/authorizations',other['agent_token'],{'transaction':dict(newtx,agent_id=other['agent_id'])},run+'-stolen-mandate',want=403)
+    call('POST','/v1/payments',other['agent_token'],{'grant':authorized['grant'],'transaction':newtx},run+'-stolen-grant',want=403)
     changed=dict(newtx,amount=9299000,unit_amount=9299000)
     denied=call('POST','/v1/payments',agent,{'grant':authorized['grant'],'transaction':changed},run+'-tamper-execute',want=422)
     assert denied['error']['code']=='TRANSACTION_HASH_MISMATCH',denied
@@ -83,6 +83,9 @@ try:
     consumed=call('GET','/v1/mandates/'+m['terms']['id'],owner)
     assert consumed['consumed_uses']==1
     print('Refund SUCCEEDED; purchasing authority remains consumed')
+    events=call('GET','/v1/audit',owner)
+    assert any(e['kind']=='policy.evaluated' and 'data' in e for e in events)
+    call('GET','/v1/audit',agent,want=403)
     print('HTTP END-TO-END DEMO PASSED')
 except Exception:
     if logfile:

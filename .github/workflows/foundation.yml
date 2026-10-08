@@ -8,13 +8,15 @@ jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: '1.26.9'
           cache: false
       - run: test -z "$(gofmt -l cmd internal)"
       - run: go vet ./...
+      - run: go run ./cmd/openapi > /tmp/north-openapi.json
+      - run: diff -u api/openapi.json /tmp/north-openapi.json
       - run: go test -race -count=1 ./...
       - run: go build ./cmd/north
       - run: docker build -t north-foundation .
@@ -40,9 +42,9 @@ jobs:
       PGPASSWORD: ci-ephemeral-only
       PGDATABASE: north
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: make schema-test
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: '1.26.9'
           cache: true
@@ -60,8 +62,8 @@ jobs:
   contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - run: python -m pip install openapi-spec-validator==0.7.2
@@ -70,7 +72,7 @@ jobs:
   compose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: make demo
       - if: always()
         run: docker compose down

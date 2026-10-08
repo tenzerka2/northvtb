@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/tenzerka2/northvtb/internal/audit"
 	"github.com/tenzerka2/northvtb/internal/authorization"
 	"github.com/tenzerka2/northvtb/internal/identity"
 	"github.com/tenzerka2/northvtb/internal/policy"
@@ -109,4 +110,25 @@ func (s *Store) SafeAppRole(ctx context.Context) error {
 		return trust.ErrDenied
 	}
 	return nil
+}
+
+func (s *Store) OwnerAudit(ctx context.Context, owner string) ([]audit.Event, error) {
+	rows, e := s.DB.QueryContext(ctx, `SELECT canonical_event FROM north.audit_events e WHERE e.actor=$1 OR e.actor IN(SELECT id FROM north.agents WHERE owner_subject=$1) OR e.subject IN(SELECT id FROM north.mandates WHERE owner_subject=$1 UNION SELECT g.id FROM north.grants g JOIN north.mandates m ON m.id=g.mandate_id WHERE m.owner_subject=$1 UNION SELECT p.id FROM north.payments p JOIN north.grants g ON g.id=p.grant_id JOIN north.mandates m ON m.id=g.mandate_id WHERE m.owner_subject=$1 UNION SELECT r.id FROM north.refunds r JOIN north.payments p ON p.id=r.payment_id JOIN north.grants g ON g.id=p.grant_id JOIN north.mandates m ON m.id=g.mandate_id WHERE m.owner_subject=$1) ORDER BY sequence DESC LIMIT 200`, owner)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	out := []audit.Event{}
+	for rows.Next() {
+		var raw []byte
+		if e = rows.Scan(&raw); e != nil {
+			return nil, e
+		}
+		var event audit.Event
+		if e = json.Unmarshal(raw, &event); e != nil {
+			return nil, e
+		}
+		out = append(out, event)
+	}
+	return out, rows.Err()
 }
