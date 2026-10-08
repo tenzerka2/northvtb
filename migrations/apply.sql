@@ -11,4 +11,9 @@ SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=1) A
 \ir 001_foundation.sql
 INSERT INTO public.north_schema_migrations(version) VALUES (1);
 \endif
+SELECT NOT EXISTS (SELECT FROM public.north_schema_migrations WHERE version=2) AS apply_v2 \gset
+\if :apply_v2
+\ir 002_offers.sql
+INSERT INTO public.north_schema_migrations(version) VALUES (2);
+\endif
 COMMIT;

@@ -1,13 +1,11 @@
 # Implementation evidence
 
-Stage 1 passed its gate in Actions run https://github.com/tenzerka2/northvtb/actions/runs/37815056773 (Go/race, schema, contract, container). Stage 2 trust core is under development. Stages 3–5 have not started.
+Foundation passed all gates in [run 37815056773](https://github.com/tenzerka2/northvtb/actions/runs/37815056773). Trust core passed all gates in [run 37815973585](https://github.com/tenzerka2/northvtb/actions/runs/37815973585).
 
-Implemented: domain amount/transaction validation and lifecycle transitions, CryptoProvider port, fail-closed health/readiness HTTP service, PostgreSQL foundation schema and role restrictions, initial OpenAPI, architecture decisions and threat analysis.
+Stage 2 tests include owner approval digest, signature/terms tampering, revoked and expired authority, version replacement, transactional audit rollback and privileged audit tampering detection. PostgreSQL tests run using the restricted application role; deliberate tamper tests use a separately supplied admin connection. Unit tests skip database tests locally when NORTH_TEST_DSN is absent; CI supplies it explicitly.
 
-Not implemented: authenticated financial APIs, persistent application repositories, signing adapter, approval, policy evaluation, grants, enforcement, worker, provider, marketplace, refunds, callbacks, OIDC, OpenTelemetry export and end-to-end demo. Schema objects are storage foundations, not evidence these features work.
+Stage 3 is under verification: deterministic rule trace, signed transaction-bound grants, expiry, reservation/consume, idempotency and authoritative offer matching. Integration tests race 32 issuers and 32 consumers, require one grant/command, and attack amount, merchant, product, signature, expiry and revocation.
 
-Go 1.26.9 was installed locally from an official SHA-256-verified archive. Local `go test -race -count=1 ./...`, `go vet ./...`, and build passed. OpenAPI validator 0.7.2 and PostgreSQL SQL parser also passed locally.
+Stage 4 payment execution/marketplace/continuation/refunds and stage 5 hardening have not started. No financial HTTP endpoints or real provider exist yet. The current HTTP service exposes only health/readiness and correctly returns 503 readiness.
 
-GitHub Actions run https://github.com/tenzerka2/northvtb/actions/runs/37814749579 confirmed Go tests, vet, build, OpenAPI validation and schema integration tests on PostgreSQL 17. The container build failed because Docker Hub returned not-found for `golang:1.26.9-bookworm`. The Dockerfile now installs the checksum-pinned official Go archive on Debian; revalidation is required. Container architecture is currently linux/amd64 only. PostgreSQL and Docker are unavailable locally.
-
-The corrected container build passed in run 37815056773. Trust core is being implemented with a repository port, PostgreSQL transaction adapter, purpose-separated Ed25519, immutable canonical approval and transactional chained audit/outbox. Stage 2 integration gate remains pending.
+Local Go 1.26.9 was installed from a SHA-256-verified official archive. Container builder uses the same checksum-pinned archive because the selected Docker Hub Go tag was unavailable. Container target: linux/amd64. Production key management, OIDC and independent audit anchoring remain required.
