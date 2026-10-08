@@ -185,7 +185,7 @@ func (s *Store) VerifyAudit(ctx context.Context, checkpointSeq int64, checkpoint
 		if e = rows.Scan(&n, &id, &at, &actor, &kind, &subject, &raw, &prev, &hash); e != nil {
 			return e
 		}
-		expected, e := (audit.Event{1, n, id, at.Unix(), actor, kind, subject, hex.EncodeToString(prev)}).Bytes()
+		expected, e := (audit.Event{Version: 1, Sequence: n, ID: id, At: at.Unix(), Actor: actor, Kind: kind, Subject: subject, Previous: hex.EncodeToString(prev)}).Bytes()
 		if e != nil || n != seq+1 || !bytes.Equal(previous, prev) || !bytes.Equal(raw, expected) || !bytes.Equal(hash, audit.Hash(raw)) {
 			return trust.ErrDenied
 		}
