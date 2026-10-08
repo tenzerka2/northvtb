@@ -1,6 +1,6 @@
 # Implementation evidence
 
-Stage 1 foundation is under development. Stages 2–5 have not started.
+Stage 1 passed its gate in Actions run https://github.com/tenzerka2/northvtb/actions/runs/37815056773 (Go/race, schema, contract, container). Stage 2 trust core is under development. Stages 3–5 have not started.
 
 Implemented: domain amount/transaction validation and lifecycle transitions, CryptoProvider port, fail-closed health/readiness HTTP service, PostgreSQL foundation schema and role restrictions, initial OpenAPI, architecture decisions and threat analysis.
 
@@ -10,4 +10,4 @@ Go 1.26.9 was installed locally from an official SHA-256-verified archive. Local
 
 GitHub Actions run https://github.com/tenzerka2/northvtb/actions/runs/37814749579 confirmed Go tests, vet, build, OpenAPI validation and schema integration tests on PostgreSQL 17. The container build failed because Docker Hub returned not-found for `golang:1.26.9-bookworm`. The Dockerfile now installs the checksum-pinned official Go archive on Debian; revalidation is required. Container architecture is currently linux/amd64 only. PostgreSQL and Docker are unavailable locally.
 
-The full foundation gate remains pending a successful container build. No later stage has started.
+The corrected container build passed in run 37815056773. Trust core is being implemented with a repository port, PostgreSQL transaction adapter, purpose-separated Ed25519, immutable canonical approval and transactional chained audit/outbox. Stage 2 integration gate remains pending.
