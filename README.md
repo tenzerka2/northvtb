@@ -12,7 +12,7 @@
 
 ## Проверки и запуск
 
-Нужны Go 1.26+, PostgreSQL 17 / psql или Docker Compose. Локальные проверки:
+Нужны Go 1.26+, PostgreSQL 17 / psql или Docker Compose. Контейнерная сборка пока поддерживает linux/amd64. Локальные проверки:
 
 ```sh
 make test
