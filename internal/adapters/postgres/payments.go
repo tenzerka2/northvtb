@@ -75,7 +75,7 @@ func (p PaymentStore) Prepare(ctx context.Context, id string) (payments.Command,
 			out.State = domain.Cancelled
 			return p.settleLocked(tx, id, m, domain.Cancelled)
 		}
-		_, e = tx.SQL.ExecContext(ctx, `UPDATE north.payments SET state='SUBMITTED',updated_at=$2,next_attempt_at=$2+interval '15 seconds' WHERE id=$1`, id, time.Unix(p.Now(), 0))
+		_, e = tx.SQL.ExecContext(ctx, `UPDATE north.payments SET state='SUBMITTED',updated_at=$2::timestamptz,next_attempt_at=$2::timestamptz+interval '15 seconds' WHERE id=$1`, id, time.Unix(p.Now(), 0))
 		if e != nil {
 			return e
 		}
@@ -100,7 +100,7 @@ func (p PaymentStore) settleLocked(tx *Tx, id string, m trust.Mandate, next doma
 			return e
 		}
 	}
-	if _, e := tx.SQL.ExecContext(tx.Ctx, `UPDATE north.payments SET state=$2,updated_at=$3,next_attempt_at=$3+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, next, time.Unix(p.Now(), 0)); e != nil {
+	if _, e := tx.SQL.ExecContext(tx.Ctx, `UPDATE north.payments SET state=$2,updated_at=$3::timestamptz,next_attempt_at=$3::timestamptz+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, next, time.Unix(p.Now(), 0)); e != nil {
 		return e
 	}
 	kind := "payment.unknown"
@@ -125,7 +125,7 @@ func (p PaymentStore) Settle(ctx context.Context, id string, next domain.Payment
 		}
 		if state == next {
 			if next == domain.Unknown {
-				_, e = tx.SQL.ExecContext(ctx, `UPDATE north.payments SET updated_at=$2,next_attempt_at=$2+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, time.Unix(p.Now(), 0))
+				_, e = tx.SQL.ExecContext(ctx, `UPDATE north.payments SET updated_at=$2::timestamptz,next_attempt_at=$2::timestamptz+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, time.Unix(p.Now(), 0))
 				return e
 			}
 			return nil
@@ -185,7 +185,7 @@ func (p PaymentStore) EndRefund(ctx context.Context, id string, success bool) er
 			next = "SUCCEEDED"
 			kind = "payment.refunded"
 		}
-		if _, e := tx.SQL.ExecContext(ctx, `UPDATE north.refunds SET state=$2,updated_at=$3,next_attempt_at=$3+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, next, time.Unix(p.Now(), 0)); e != nil {
+		if _, e := tx.SQL.ExecContext(ctx, `UPDATE north.refunds SET state=$2,updated_at=$3::timestamptz,next_attempt_at=$3::timestamptz+least(60,power(2,least(attempts,6)))*interval '1 second',attempts=least(attempts+1,1000000) WHERE id=$1`, id, next, time.Unix(p.Now(), 0)); e != nil {
 			return e
 		}
 		return tx.Emit("payment-worker", kind, id, p.Now())

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Reproducible owner/agent HTTP demo. Never prints credentials."""
-import json, os, subprocess, time, urllib.request, urllib.error, pathlib, sys
+import json, os, subprocess, time, urllib.request, urllib.error, pathlib, sys, tempfile
 for line in pathlib.Path('.env').read_text().splitlines() if pathlib.Path('.env').exists() else []:
     if line.startswith('NORTH_') and '=' in line:
         k,v=line.split('=',1);os.environ.setdefault(k,v)
 base=os.environ.get('NORTH_DEMO_URL','http://127.0.0.1:8080')
 owner=os.environ['NORTH_OWNER_TOKEN']
 process=None
+logfile=None
 if '--spawn' in sys.argv:
-    process=subprocess.Popen([os.environ['NORTH_DEMO_BINARY']],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    logfile=tempfile.TemporaryFile(mode='w+b')
+    process=subprocess.Popen([os.environ['NORTH_DEMO_BINARY']],stdout=logfile,stderr=logfile)
 def call(method,path,token=None,body=None,key=None,want=200):
     headers={'Content-Type':'application/json'}
     if token:headers['Authorization']='Bearer '+token
@@ -62,6 +64,9 @@ try:
     assert consumed['state']=='CONSUMED' and consumed['consumed_uses']==1 and consumed['reserved_uses']==0,consumed
     call('POST','/v1/payments',agent,execution,run+'-replay',want=403)
     print('Payment SUCCEEDED; mandate CONSUMED 1/1; replay blocked')
+    other=call('POST','/v1/agents',owner,{},run+'-other-agent')
+    call('POST','/v1/authorizations',other['agent_token'],{'transaction':dict(tx,agent_id=other['agent_id'])},run+'-stolen-mandate',want=403)
+    call('POST','/v1/payments',other['agent_token'],execution,run+'-stolen-grant',want=403)
     second=mandate('tamper');newtx=transaction(valid_offer,second['terms']['id'])
     authorized=call('POST','/v1/authorizations',agent,{'transaction':newtx},run+'-tamper-grant')
     changed=dict(newtx,amount=9299000,unit_amount=9299000)
@@ -69,7 +74,21 @@ try:
     assert denied['error']['code']=='TRANSACTION_HASH_MISMATCH',denied
     print('82,990 -> 92,990 RUB tampering blocked: TRANSACTION_HASH_MISMATCH')
     call('POST','/v1/mandates/revoke',owner,{'agent_id':aid,'mandate_id':second['terms']['id']},run+'-cleanup')
+    refund=call('POST','/v1/refunds',owner,{'payment_id':pid},run+'-refund')
+    for _ in range(100):
+        status=call('GET','/v1/refunds/'+refund['refund_id'],owner)
+        if status['state']=='SUCCEEDED':break
+        time.sleep(.1)
+    else:raise RuntimeError('refund did not settle')
+    consumed=call('GET','/v1/mandates/'+m['terms']['id'],owner)
+    assert consumed['consumed_uses']==1
+    print('Refund SUCCEEDED; purchasing authority remains consumed')
     print('HTTP END-TO-END DEMO PASSED')
+except Exception:
+    if logfile:
+        logfile.seek(0);print(logfile.read().decode(errors='replace'),file=sys.stderr)
+    raise
 finally:
     if process:
         process.terminate();process.wait(timeout=20)
+    if logfile:logfile.close()

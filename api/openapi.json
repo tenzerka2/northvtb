@@ -453,6 +453,26 @@
         ],
         "type": "object"
       },
+      "ReplaceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "mandate_id": {
+            "type": "string"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/NewTerms"
+          }
+        },
+        "required": [
+          "agent_id",
+          "mandate_id",
+          "terms"
+        ],
+        "type": "object"
+      },
       "Response": {
         "additionalProperties": false,
         "properties": {
@@ -903,6 +923,28 @@
           }
         },
         "summary": "Process liveness"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Metrics"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner-only Prometheus metrics; compatible with OpenTelemetry Collector scraping"
       }
     },
     "/readyz": {
@@ -1894,6 +1936,158 @@
         "summary": "Owner: explicitly approve exact canonical digest"
       }
     },
+    "/v1/mandates/replace": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "digest": {
+                      "type": "string"
+                    },
+                    "mandate": {
+                      "$ref": "#/components/schemas/Mandate"
+                    },
+                    "mandate_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mandate_id",
+                    "digest",
+                    "mandate"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful result; payment/refund commands may still be PENDING"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: revoke predecessor and create a new version draft atomically"
+      }
+    },
     "/v1/mandates/revoke": {
       "post": {
         "parameters": [
@@ -2845,6 +3039,141 @@
           }
         ],
         "summary": "Owner: enqueue full refund; no mandate capacity is restored"
+      }
+    },
+    "/v1/refunds/{refund_id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "refund_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "refund_id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "refund_id",
+                    "state"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful result; payment/refund commands may still be PENDING"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Safe structured error; see error.code"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: read current refund state"
       }
     }
   }

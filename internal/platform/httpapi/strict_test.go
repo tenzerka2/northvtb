@@ -16,3 +16,13 @@ func TestStrictJSON(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestRateLimiterBound(t *testing.T) {
+	l := NewLimiter()
+	if !l.Allow("a", 0, 2) || !l.Allow("a", 0, 2) || l.Allow("a", 0, 2) {
+		t.Fatal("burst not enforced")
+	}
+	if !l.Allow("b", 0, 2) {
+		t.Fatal("principal isolation failed")
+	}
+}

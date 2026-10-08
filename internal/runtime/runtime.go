@@ -127,6 +127,9 @@ func (r *Runtime) Work(ctx context.Context) {
 func (r *Runtime) Tick(ctx context.Context) {
 	ctx, span := r.Telemetry.Provider.Tracer("north.worker").Start(ctx, "reconcile.batch")
 	defer span.End()
+	if e := r.API.Store.Sweep(ctx, time.Now().UTC().Unix()); e != nil {
+		r.Log.Warn("expiry.retry_pending")
+	}
 	if _, e := r.API.Store.DeliverOutbox(ctx, 64); e != nil {
 		r.Log.Warn("outbox.retry_pending")
 	}

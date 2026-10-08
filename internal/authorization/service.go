@@ -148,6 +148,15 @@ func (s Service) Issue(ctx context.Context, agent, key string, t domain.Transact
 			if expiry > m.Terms.ExpiresAt {
 				expiry = m.Terms.ExpiresAt
 			}
+			if approval != "" {
+				c, e := tx.Challenge(approval)
+				if e != nil {
+					return e
+				}
+				if expiry > c.ExpiresAt {
+					expiry = c.ExpiresAt
+				}
+			}
 			g := Grant{Claims: Claims{RiskApprovalID: approval, ID: trust.ID(), MandateID: m.Terms.ID, AgentID: agent, MerchantID: o.Merchant, Hash: requestHash, Amount: t.Amount, Currency: t.Currency, IssuedAt: s.Now(), ExpiresAt: expiry, Nonce: hex.EncodeToString(nonce[:]), MaxUses: 1}, State: domain.GrantIssued, Transaction: t}
 			b, e := json.Marshal(g.Claims)
 			if e != nil {

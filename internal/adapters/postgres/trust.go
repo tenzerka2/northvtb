@@ -42,6 +42,9 @@ func (s *Store) Atomic(ctx context.Context, f func(*Tx) error) error {
 		return e
 	}
 	defer tx.Rollback()
+	if _, e = tx.ExecContext(ctx, `SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='15s'; SET LOCAL idle_in_transaction_session_timeout='15s'`); e != nil {
+		return e
+	}
 	if e = f(&Tx{tx, ctx}); e != nil {
 		return e
 	}
@@ -152,7 +155,7 @@ func (t *Tx) Emit(actor, kind, subject string, at int64) error {
 	if _, e = t.SQL.ExecContext(t.Ctx, `UPDATE north.audit_head SET sequence=$1,hash=$2 WHERE singleton`, event.Sequence, hash); e != nil {
 		return e
 	}
-	_, e = t.SQL.ExecContext(t.Ctx, `INSERT INTO north.outbox(event_id,created_at,available_at) VALUES($1,$2,$2)`, event.ID, time.Unix(at, 0))
+	_, e = t.SQL.ExecContext(t.Ctx, `INSERT INTO north.outbox(event_id,created_at,available_at) VALUES($1,clock_timestamp(),clock_timestamp())`, event.ID)
 	return e
 }
 

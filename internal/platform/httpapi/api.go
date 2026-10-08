@@ -42,6 +42,11 @@ type API struct {
 type DraftRequest struct {
 	Terms trust.Terms `json:"terms"`
 }
+type ReplaceRequest struct {
+	AgentID   string      `json:"agent_id"`
+	MandateID string      `json:"mandate_id"`
+	Terms     trust.Terms `json:"terms"`
+}
 type ApprovalRequest struct {
 	AgentID   string `json:"agent_id"`
 	MandateID string `json:"mandate_id"`
@@ -270,6 +275,24 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			write(w, 200, m)
 			return
+		case strings.HasPrefix(r.URL.Path, "/v1/refunds/"):
+			rid := strings.TrimPrefix(r.URL.Path, "/v1/refunds/")
+			var pid, state string
+			if principal.AgentID != "" {
+				fail(trust.ErrNotFound)
+				return
+			}
+			if e = a.Store.DB.QueryRowContext(ctx, `SELECT payment_id,state FROM north.refunds WHERE id=$1`, rid).Scan(&pid, &state); e != nil {
+				fail(trust.ErrNotFound)
+				return
+			}
+			owner, _, e := a.Store.PaymentOwner(ctx, pid)
+			if e != nil || owner != principal.Owner {
+				fail(trust.ErrNotFound)
+				return
+			}
+			write(w, 200, map[string]string{"refund_id": rid, "state": state})
+			return
 		case strings.HasPrefix(r.URL.Path, "/v1/payments/"):
 			pid := strings.TrimPrefix(r.URL.Path, "/v1/payments/")
 			owner, agent, e := a.Store.PaymentOwner(ctx, pid)
@@ -307,6 +330,9 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/v1/mandates":
 		operation = "http.draft"
 		payload = &DraftRequest{}
+	case "/v1/mandates/replace":
+		operation = "http.replace"
+		payload = &ReplaceRequest{}
 	case "/v1/mandates/approve":
 		operation = "http.approve"
 		payload = &ApprovalRequest{}
@@ -369,6 +395,13 @@ func (a API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return map[string]any{"agent_id": ag.ID, "agent": ag}, nil
 		case *DraftRequest:
 			m, e := trustService.Draft(ctx, principal.Owner, v.Terms)
+			if e != nil {
+				return nil, e
+			}
+			d, e := m.Terms.Digest()
+			return map[string]any{"mandate_id": m.Terms.ID, "digest": d, "mandate": m}, e
+		case *ReplaceRequest:
+			m, e := trustService.Replace(ctx, principal.Owner, v.AgentID, v.MandateID, v.Terms)
 			if e != nil {
 				return nil, e
 			}
