@@ -49,26 +49,27 @@ type Agent struct {
 	RevokedAt     int64  `json:"revoked_at"`
 }
 type Terms struct {
-	SchemaVersion     int           `json:"schema_version"`
-	ID                string        `json:"id"`
-	Version           int64         `json:"version"`
-	PredecessorID     string        `json:"predecessor_id"`
-	Owner             string        `json:"owner"`
-	AgentID           string        `json:"agent_id"`
-	Action            string        `json:"action"`
-	Purpose           string        `json:"purpose"`
-	Product           string        `json:"product"`
-	Category          string        `json:"category"`
-	Condition         string        `json:"condition"`
-	MaxAmount         domain.Amount `json:"max_amount"`
-	Currency          string        `json:"currency"`
-	Merchants         []string      `json:"merchants"`
-	RequireVerified   bool          `json:"require_verified"`
-	AllowRiskApproval bool          `json:"allow_risk_approval"`
-	MaxRisk           int           `json:"max_risk"`
-	MaxUses           int64         `json:"max_uses"`
-	CreatedAt         int64         `json:"created_at"`
-	ExpiresAt         int64         `json:"expires_at"`
+	SchemaVersion         int           `json:"schema_version"`
+	ID                    string        `json:"id"`
+	Version               int64         `json:"version"`
+	PredecessorID         string        `json:"predecessor_id"`
+	Owner                 string        `json:"owner"`
+	AgentID               string        `json:"agent_id"`
+	Action                string        `json:"action"`
+	Purpose               string        `json:"purpose"`
+	Product               string        `json:"product"`
+	Category              string        `json:"category"`
+	Condition             string        `json:"condition"`
+	MaxAmount             domain.Amount `json:"max_amount"`
+	Currency              string        `json:"currency"`
+	Merchants             []string      `json:"merchants"`
+	RequireVerified       bool          `json:"require_verified"`
+	AllowRiskApproval     bool          `json:"allow_risk_approval"`
+	MaxRisk               int           `json:"max_risk"`
+	MaxUses               int64         `json:"max_uses"`
+	CreatedAt             int64         `json:"created_at"`
+	ExpiresAt             int64         `json:"expires_at"`
+	AllowMerchantApproval bool          `json:"allow_merchant_approval,omitempty"`
 }
 
 func (m Terms) Canonical() ([]byte, error) {

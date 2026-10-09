@@ -94,7 +94,11 @@ func Evaluate(i Input) Result {
 			allowed = true
 		}
 	}
-	add("MERCHANT_ALLOWED", allowed, Deny)
+	if m.Terms.AllowMerchantApproval {
+		add("MERCHANT_ALLOWED", allowed || i.OwnerRiskApproved, AskUser)
+	} else {
+		add("MERCHANT_ALLOWED", allowed, Deny)
+	}
 	add("OFFER_AUTHENTIC", o.Active && t.OfferID == o.ID && t.OfferRevision == o.Revision && t.MerchantID == o.Merchant && t.Product == o.Product && t.Category == o.Category && t.Condition == o.Condition && t.Currency == o.Currency && t.Quantity == o.Quantity && t.UnitAmount == o.UnitAmount && t.Fees == o.Fees && t.Shipping == o.Shipping && t.Amount == o.Amount, Deny)
 	add("MERCHANT_TRUST_SUFFICIENT", !m.Terms.RequireVerified || o.Verified, Deny)
 	riskOK := o.Risk >= 0 && o.Risk <= m.Terms.MaxRisk && i.Agent.Risk <= m.Terms.MaxRisk

@@ -46,3 +46,40 @@ func TestPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestMerchantConsentCannotBypassHardRules(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		change func(*Input)
+		want   Decision
+	}{
+		{"default-deny", func(i *Input) {}, Deny},
+		{"explicit-opt-in", func(i *Input) { i.Mandate.Terms.AllowMerchantApproval = true }, AskUser},
+		{"exact-consent", func(i *Input) { i.Mandate.Terms.AllowMerchantApproval = true; i.OwnerRiskApproved = true }, Allow},
+		{"consent-cannot-enable-opt-in", func(i *Input) { i.OwnerRiskApproved = true }, Deny},
+		{"consent-cannot-raise-budget", func(i *Input) {
+			i.Mandate.Terms.AllowMerchantApproval = true
+			i.OwnerRiskApproved = true
+			i.Mandate.Terms.MaxAmount = 1
+		}, Deny},
+		{"consent-cannot-verify-seller", func(i *Input) {
+			i.Mandate.Terms.AllowMerchantApproval = true
+			i.OwnerRiskApproved = true
+			i.Offer.Verified = false
+		}, Deny},
+		{"consent-cannot-revive-revocation", func(i *Input) {
+			i.Mandate.Terms.AllowMerchantApproval = true
+			i.OwnerRiskApproved = true
+			i.Agent.Status = "REVOKED"
+		}, Deny},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			i := input()
+			i.Mandate.Terms.Merchants = []string{"different-seller"}
+			c.change(&i)
+			if got := Evaluate(i).Decision; got != c.want {
+				t.Fatalf("got %s, want %s", got, c.want)
+			}
+		})
+	}
+}

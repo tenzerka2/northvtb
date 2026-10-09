@@ -16,6 +16,7 @@ import (
 	"github.com/tenzerka2/northvtb/internal/payments"
 	"github.com/tenzerka2/northvtb/internal/platform/httpapi"
 	"github.com/tenzerka2/northvtb/internal/trust"
+	"github.com/tenzerka2/northvtb/internal/webui"
 	"log/slog"
 	"net/http"
 	"os"
@@ -104,7 +105,9 @@ func Open(ctx context.Context, log *slog.Logger) (*Runtime, error) {
 	ok = true
 	return &Runtime{API: api, ProviderDB: provider, Log: log, Telemetry: telemetry}, nil
 }
-func (r *Runtime) Handler() http.Handler { return r.Telemetry.Wrap(r.API) }
+func (r *Runtime) Handler() http.Handler {
+	return r.Telemetry.Wrap(webui.New(r.API, r.API.Store, r.API.Trust, os.Getenv("NORTH_OWNER_SUBJECT"), os.Getenv("NORTH_OWNER_TOKEN")))
+}
 func (r *Runtime) Close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

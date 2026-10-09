@@ -289,7 +289,7 @@ func (s Service) ApproveRisk(ctx context.Context, owner, agent, mandate, id, has
 		if e != nil {
 			return e
 		}
-		if a.Owner != owner || m.Terms.Owner != owner || m.Terms.AgentID != agent || c.AgentID != agent || c.MandateID != mandate || c.Hash != hash || c.GrantID != "" || s.Now() >= c.ExpiresAt || !m.Terms.AllowRiskApproval {
+		if a.Owner != owner || m.Terms.Owner != owner || m.Terms.AgentID != agent || c.AgentID != agent || c.MandateID != mandate || c.Hash != hash || c.GrantID != "" || s.Now() >= c.ExpiresAt || (!m.Terms.AllowRiskApproval && !m.Terms.AllowMerchantApproval) {
 			return trust.ErrDenied
 		}
 		if e = s.Trust.Verify(ctx, a, m); e != nil {
