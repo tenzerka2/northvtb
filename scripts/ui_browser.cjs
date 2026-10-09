@@ -49,7 +49,7 @@ const path = require("node:path");
       });
       if (await connect.count()) {
         await connect.click();
-        await page.getByLabel("Агент", { exact: true }).waitFor();
+        await page.locator('select[name="agent"]').waitFor();
       }
       await page
         .getByLabel("Название поручения")
