@@ -55,10 +55,19 @@ jobs:
           NORTH_TEST_ADMIN_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable
       - run: psql -X -v ON_ERROR_STOP=1 -f scripts/seed.sql
       - run: go build -o /tmp/north-demo ./cmd/north
+      - run: npm install --prefix /tmp/north-browser-test playwright@1.56.1
+      - run: /tmp/north-browser-test/node_modules/.bin/playwright install --with-deps chromium
       - run: python3 scripts/ci_demo.py
         env:
+          NODE_PATH: /tmp/north-browser-test/node_modules
+          NORTH_BROWSER_TEST: '1'
           NORTH_TEST_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_app
           NORTH_TEST_PROVIDER_DSN: postgres://postgres:ci-ephemeral-only@localhost:5432/north?sslmode=disable&options=-c%20role%3Dnorth_provider
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: north-ui-screenshots
+          path: /tmp/north-ui-screenshots
   contract:
     runs-on: ubuntu-latest
     steps:

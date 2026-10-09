@@ -352,6 +352,9 @@
           "agent_id": {
             "type": "string"
           },
+          "allow_merchant_approval": {
+            "type": "boolean"
+          },
           "allow_risk_approval": {
             "type": "boolean"
           },
@@ -661,6 +664,9 @@
           },
           "agent_id": {
             "type": "string"
+          },
+          "allow_merchant_approval": {
+            "type": "boolean"
           },
           "allow_risk_approval": {
             "type": "boolean"

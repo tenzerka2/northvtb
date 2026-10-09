@@ -77,3 +77,21 @@ func TestCanonicalAndSignature(t *testing.T) {
 		t.Fatal("cross-purpose signature accepted")
 	}
 }
+
+func TestMerchantApprovalPreservesLegacyCanonicalBytes(t *testing.T) {
+	v := terms()
+	raw, e := v.Canonical()
+	if e != nil {
+		t.Fatal(e)
+	}
+	const legacy = `{"schema_version":1,"id":"m","version":1,"predecessor_id":"","owner":"issuer|user","agent_id":"a","action":"purchase","purpose":"console","product":"PS5-Pro","category":"gaming","condition":"new","max_amount":8500000,"currency":"RUB","merchants":["a","b"],"require_verified":true,"allow_risk_approval":false,"max_risk":20,"max_uses":1,"created_at":100,"expires_at":200}`
+	if string(raw) != legacy {
+		t.Fatal("legacy signed payload changed")
+	}
+	before, _ := v.Digest()
+	v.AllowMerchantApproval = true
+	after, _ := v.Digest()
+	if before == after {
+		t.Fatal("new permission not signed")
+	}
+}
