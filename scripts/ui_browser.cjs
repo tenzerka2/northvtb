@@ -42,11 +42,15 @@ const path = require("node:path");
         .getByRole("link", { name: "Создать поручение", exact: true })
         .first()
         .click();
+      await page.getByRole("heading", {name:"Новое поручение",exact:true}).waitFor();
       const connect = page.getByRole("button", {
         name: "Подключить агента «Закупки»",
         exact: true,
       });
-      if (await connect.count()) await connect.click();
+      if (await connect.count()) {
+        await connect.click();
+        await page.getByLabel("Агент", { exact: true }).waitFor();
+      }
       await page
         .getByLabel("Название поручения")
         .fill("Купить монитор — " + width);

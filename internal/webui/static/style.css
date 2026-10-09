@@ -926,8 +926,8 @@ dialog .form-actions {
     filter: brightness(0.45);
   }
   .bottom-nav a.active img {
-    filter: brightness(0) saturate(100%) invert(27%) sepia(97%) saturate(4418%) hue-rotate(229deg)
-      brightness(97%);
+    filter: brightness(0) saturate(100%) invert(27%) sepia(97%) saturate(4418%)
+      hue-rotate(229deg) brightness(97%);
   }
   .content {
     padding-bottom: 110px;

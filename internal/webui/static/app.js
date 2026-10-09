@@ -95,7 +95,8 @@ let state = {
   events: [],
   digests: {},
 };
-let authenticated = false, homeOffers = [];
+let authenticated = false,
+  homeOffers = [];
 let tab = "active",
   selectedAgent = "",
   selectedPayment = "",
@@ -227,7 +228,12 @@ function mandates() {
 }
 function mandateCard(m, hero) {
   const t = m.terms;
-  const proposal = m.state === "ACTIVE" && homeOffers.find(o=>o.transaction.mandate_id === t.id && o.policy.decision === "ASK_USER");
+  const proposal =
+    m.state === "ACTIVE" &&
+    homeOffers.find(
+      (o) =>
+        o.transaction.mandate_id === t.id && o.policy.decision === "ASK_USER",
+    );
   return hero
     ? `<article class="card hero"><div class="row between">${badge(proposal ? "ASK_USER" : m.state)}<span class="small muted">№ ${esc(t.id.slice(-6))}</span></div><h2>${esc(t.purpose)}</h2><p>${esc(t.product)} · ${t.condition === "new" ? "Новый" : "Б/у"}</p><div class="budget"><p class="small">Лимит покупки, с доставкой</p><div class="money">${money(t.max_amount)}</div></div><div class="divider"></div><div class="row between"><span>Агент «Закупки»</span><span class="expiry">Купить до ${date(t.expires_at)}</span></div>${proposal ? `<div class="callout amber"><strong>${esc(merchant(proposal.offer.merchant_id))} · ${money(proposal.offer.amount)}</strong><p>Новый поставщик. Без вашего подтверждения покупка не состоится.</p><a href="#/mandate/${esc(t.id)}">Посмотреть предложение →</a></div>` : m.state === "ACTIVE" ? `<div class="callout blue"><strong>Поручение готово к поиску</strong><p>Проверим предложения по вашему лимиту и списку поставщиков.</p><a href="#/mandate/${esc(t.id)}">Посмотреть предложения →</a></div>` : ""}<a class="link-button" href="#/mandate/${esc(t.id)}">Детали поручения →</a></article>`
     : `<article class="list-card"><div class="row between"><h3><a href="#/mandate/${esc(t.id)}">${esc(t.purpose)}</a></h3><strong>${money(t.max_amount)}</strong></div><p>${esc(t.product)} · агент «Закупки»</p><div class="row wrap">${badge(m.state)}<span class="expiry">До ${date(t.expires_at)}</span></div></article>`;
@@ -261,7 +267,11 @@ async function detail(id, version) {
   const t = m.terms;
   shell(
     back() +
-      head(esc(t.purpose), esc(t.product) + " · 27″ · 4K") +
+      head(
+        esc(t.purpose),
+        esc(t.product) +
+          (t.product === "Dell UltraSharp U2723QE" ? " · 27″ · 4K" : ""),
+      ) +
       `<div class="grid"><section><div class="card"><div class="row between">${badge(m.state)}<span class="small muted">№ ${esc(id.slice(-6))}</span></div><div class="budget"><p>Лимит покупки, с доставкой</p><div class="money">${money(t.max_amount)}</div></div><p>Оплата только после проверки всех условий.</p>${m.state === "DRAFT" ? `<button class="btn primary" data-action="approve-draft" data-id="${esc(id)}">Подтвердить поручение</button>` : ""}</div><h2 class="section-head">Предложения</h2><div class="offers">${offers.length ? offers.map((o, i) => offerCard(o, i)).join("") : '<div class="empty"><h3>Предложений пока нет</h3><p>В демокаталоге нет этого товара.</p></div>'}</div></section>${termsPanel(m)}</div>`,
   );
 }
@@ -305,7 +315,7 @@ function purchaseView() {
           ? "Агент нашёл предложение у нового поставщика. Решение за вами."
           : "Агент купит товар на указанных условиях.",
       ) +
-      `<div class="grid form-grid"><section class="card"><span class="muted">Сумма покупки</span><div class="money">${money(o.amount)}</div><div class="product"><div class="product-icon">${icon("monitor")}</div><div><h3>${esc(o.product)}</h3><p>27″ · 4K · новый</p></div></div><dl><div class="kv"><dt>Поставщик</dt><dd>${esc(merchant(o.merchant_id))}</dd></div><div class="kv"><dt>Агент</dt><dd>Закупки</dd></div><div class="kv"><dt>Товар</dt><dd>${money(o.unit_amount)}</dd></div><div class="kv"><dt>Доставка и комиссии</dt><dd>${money(o.shipping + o.fees)}</dd></div><div class="kv"><dt>Ваш лимит</dt><dd>${money(m?.terms.max_amount)}</dd></div></dl><div class="form-actions"><button class="btn primary" data-action="purchase">${d === "ASK_USER" ? "Подтвердить и купить за" : "Купить за"} ${money(o.amount)}</button><a class="btn" href="#/mandate/${esc(item.transaction.mandate_id)}">Вернуться к предложениям</a></div><p class="footnote">Подтверждение действует только для этой покупки. Поставщик, товар и сумма зафиксированы.</p></section><aside class="summary">${d === "ASK_USER" ? `<div class="callout amber"><div class="row">${icon("shield-alert")}<strong>Поставщик вне вашего списка</strong></div><p>${esc(merchant(o.merchant_id))} не указан в поручении. После вашего согласия агент сможет выполнить эту покупку.</p></div>` : ""}<h3>Что проверено</h3><ul class="rules">${item.policy.rules
+      `<div class="grid form-grid"><section class="card"><span class="muted">Сумма покупки</span><div class="money">${money(o.amount)}</div><div class="product"><div class="product-icon">${icon("monitor")}</div><div><h3>${esc(o.product)}</h3><p>${o.product === "Dell UltraSharp U2723QE" ? "27″ · 4K · " : ""}новый</p></div></div><dl><div class="kv"><dt>Поставщик</dt><dd>${esc(merchant(o.merchant_id))}</dd></div><div class="kv"><dt>Агент</dt><dd>Закупки</dd></div><div class="kv"><dt>Товар</dt><dd>${money(o.unit_amount)}</dd></div><div class="kv"><dt>Доставка и комиссии</dt><dd>${money(o.shipping + o.fees)}</dd></div><div class="kv"><dt>Ваш лимит</dt><dd>${money(m?.terms.max_amount)}</dd></div></dl><div class="form-actions"><button class="btn primary" data-action="purchase">${d === "ASK_USER" ? "Подтвердить и купить за" : "Купить за"} ${money(o.amount)}</button><a class="btn" href="#/mandate/${esc(item.transaction.mandate_id)}">Вернуться к предложениям</a></div><p class="footnote">Подтверждение действует только для этой покупки. Поставщик, товар и сумма зафиксированы.</p></section><aside class="summary">${d === "ASK_USER" ? `<div class="callout amber"><div class="row">${icon("shield-alert")}<strong>Поставщик вне вашего списка</strong></div><p>${esc(merchant(o.merchant_id))} не указан в поручении. После вашего согласия агент сможет выполнить эту покупку.</p></div>` : ""}<h3>Что проверено</h3><ul class="rules">${item.policy.rules
         .filter((r) =>
           [
             "PRODUCT_MATCH",
@@ -434,11 +444,15 @@ async function route(reload = true) {
     else if (page === "agents") agents();
     else if (page === "operations") operations();
     else {
- const first = state.mandates.find(m=>m.state === "ACTIVE");
- homeOffers = first ? await request("/ui/offers?mandate="+encodeURIComponent(first.terms.id)) : [];
- if(version !== routeVersion) return;
- mandates();
- }
+      const first = state.mandates.find((m) => m.state === "ACTIVE");
+      homeOffers = first
+        ? await request(
+            "/ui/offers?mandate=" + encodeURIComponent(first.terms.id),
+          )
+        : [];
+      if (version !== routeVersion) return;
+      mandates();
+    }
     if (reload) window.scrollTo(0, 0);
   } catch (e) {
     if ($("#main")) {
@@ -594,11 +608,27 @@ app.addEventListener("click", (e) => {
         tab = b.dataset.value;
         mandates();
         break;
-      case "register":
+      case "register": {
+        const currentForm = $("#mandate-form");
+        const entered = currentForm ? new FormData(currentForm) : null;
         await post("agents");
         await route();
+        const newForm = $("#mandate-form");
+        if (entered && newForm) {
+          for (const field of newForm.querySelectorAll("input, select")) {
+            if (field.name === "agent") continue;
+            if (field.type === "checkbox")
+              field.checked = entered.getAll(field.name).includes(field.value);
+            else if (entered.has(field.name))
+              field.value = entered.get(field.name);
+          }
+          newForm
+            .querySelector("input")
+            .dispatchEvent(new Event("input", { bubbles: true }));
+        }
         notify("Агент «Закупки» подключён");
         break;
+      }
       case "offer":
         await selectOffer(Number(b.dataset.index));
         break;
@@ -724,11 +754,15 @@ app.addEventListener("submit", async (e) => {
     try {
       const draft = await post("mandates", { terms });
       if (submitter?.name !== "draft") {
-        try { await post("mandates/approve", {
-          agent_id: terms.agent_id,
-          mandate_id: draft.mandate_id,
-          digest: draft.digest,
-        }); } catch (error) { notify("Черновик сохранён. " + error.message); }
+        try {
+          await post("mandates/approve", {
+            agent_id: terms.agent_id,
+            mandate_id: draft.mandate_id,
+            digest: draft.digest,
+          });
+        } catch (error) {
+          notify("Черновик сохранён. " + error.message);
+        }
       }
       location.hash = "#/mandate/" + draft.mandate_id;
     } catch (error) {
